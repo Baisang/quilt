@@ -353,6 +353,12 @@
 			"revision": "09dda9d4b0d748c57c14048906d3d094a58ec0c9"
 		},
 		{
+			"checksumSHA1": "kE6jLuK2KWKWgAiXr8FY6rl0uYs=",
+			"path": "github.com/fatih/color",
+			"revision": "9ab0325f4904aac7c2c60db3cff3b35f415575c7",
+			"revisionTime": "2016-12-28T20:43:10Z"
+		},
+		{
 			"checksumSHA1": "T6oH2oU+mrYVfFEsSwPSVT53fVw=",
 			"path": "github.com/fsouza/go-dockerclient",
 			"revision": "01804dec8a84d0a77e63611f2b62d33e9bb2b64a"
@@ -405,6 +411,18 @@
 			"checksumSHA1": "KQhA4EQp4Ldwj9nJZnEURlE6aQw=",
 			"path": "github.com/kr/fs",
 			"revision": "2788f0dbd16903de03cb8186e5c7d97b69ad387b"
+		},
+		{
+			"checksumSHA1": "I4njd26dG5hxFT2nawuByM4pxzY=",
+			"path": "github.com/mattn/go-colorable",
+			"revision": "d228849504861217f796da67fae4f6e347643f15",
+			"revisionTime": "2016-11-03T16:00:40Z"
+		},
+		{
+			"checksumSHA1": "xZuhljnmBysJPta/lMyYmJdujCg=",
+			"path": "github.com/mattn/go-isatty",
+			"revision": "30a891c33c7cde7b02a981314b4228ec99380cca",
+			"revisionTime": "2016-11-23T14:36:37Z"
 		},
 		{
 			"checksumSHA1": "Lnv1MZJu56aDzs5/EebdCuq3OFI=",

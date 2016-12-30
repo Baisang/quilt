@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/fatih/color"
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/robertkrimen/otto"
 
@@ -118,7 +119,7 @@ func (rCmd *Run) Run() int {
 		if diff == "" {
 			fmt.Println("No change.")
 		} else {
-			fmt.Println(diff)
+			fmt.Println(colorizeDiff(diff))
 		}
 		shouldDeploy, err := confirm(os.Stdin, "Continue with deployment?")
 		if err != nil {
@@ -184,6 +185,21 @@ func prettifyJSON(toPrettify string) (string, error) {
 		return "", err
 	}
 	return prettified.String(), nil
+}
+
+func colorizeDiff(toColorize string) string {
+	var colorized bytes.Buffer
+	for _, line := range strings.SplitAfter(toColorize, "\n") {
+		switch {
+		case strings.HasPrefix(line, "+"):
+			colorized.WriteString(color.GreenString("%s", line))
+		case strings.HasPrefix(line, "-"):
+			colorized.WriteString(color.RedString("%s", line))
+		default:
+			colorized.WriteString(line)
+		}
+	}
+	return colorized.String()
 }
 
 // Saved in a variable so that we can mock it for unit testing.

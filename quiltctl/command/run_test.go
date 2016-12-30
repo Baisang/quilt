@@ -10,6 +10,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	logrusTestHook "github.com/Sirupsen/logrus/hooks/test"
+	"github.com/fatih/color"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -212,6 +213,50 @@ func TestDeploymentDiff(t *testing.T) {
 		diff, err := diffDeployment(test.curr, test.new)
 		assert.Nil(t, err)
 		assert.Equal(t, test.exp, diff)
+	}
+}
+
+type colorizeTest struct {
+	original string
+	exp      string
+}
+
+func TestColorize(t *testing.T) {
+	green := "\x1b[32m"
+	red := "\x1b[31m"
+	// a reset sequence is inserted after a colorized line
+	reset := "\x1b[0m"
+	// force colored output for testing
+	color.NoColor = false
+	tests := []colorizeTest{
+		{
+			original: "{}",
+			exp:      "{}",
+		},
+		{
+			original: "no color\n" +
+				"-\tred\n" +
+				"+\tgreen\n",
+			exp: "no color\n" +
+				red + "-\tred\n" + reset +
+				green + "+\tgreen\n" + reset,
+		},
+		{
+			original: "\n",
+			exp:      "\n",
+		},
+		{
+			original: "\na\n\n",
+			exp:      "\na\n\n",
+		},
+		{
+			original: "+----+---+\n",
+			exp:      green + "+----+---+\n" + reset,
+		},
+	}
+	for _, test := range tests {
+		colorized := colorizeDiff(test.original)
+		assert.Equal(t, test.exp, colorized)
 	}
 }
 
