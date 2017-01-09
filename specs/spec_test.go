@@ -57,4 +57,5 @@ func TestConfigs(t *testing.T) {
 	testConfig("./mean/example.js", quiltPath)
 	testConfig("./elasticsearch/main.js", quiltPath)
 	testConfig("./kibana/main.js", quiltPath)
+	testConfig("./django/django-example.js", quiltPath)
 }
