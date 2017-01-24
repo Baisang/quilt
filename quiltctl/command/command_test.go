@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"flag"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	units "github.com/docker/go-units"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/NetSys/quilt/db"
@@ -69,12 +72,14 @@ func TestContainerOutput(t *testing.T) {
 
 	containers := []db.Container{
 		{ID: 1, StitchID: 3, Minion: "3.3.3.3", IP: "1.2.3.4",
-			Image: "image1", Command: []string{"cmd", "1"}},
+			Image: "image1", Command: []string{"cmd", "1"},
+			Status: "running"},
 		{ID: 2, StitchID: 1, Minion: "1.1.1.1", Image: "image2",
-			Labels: []string{"label1", "label2"}},
+			Labels: []string{"label1", "label2"}, Status: "scheduled"},
 		{ID: 3, StitchID: 4, Minion: "1.1.1.1", Image: "image3",
 			Command: []string{"cmd"},
-			Labels:  []string{"label1"}},
+			Labels:  []string{"label1"},
+			Status:  "scheduled"},
 		{ID: 4, StitchID: 7, Minion: "2.2.2.2", Image: "image1",
 			Command: []string{"cmd", "3", "4"},
 			Labels:  []string{"label1"}},
@@ -100,17 +105,70 @@ func TestContainerOutput(t *testing.T) {
 	* errors easier to debug. */
 	result = strings.Replace(result, " ", "_", -1)
 	expected := `ID____MACHINE______CONTAINER_________LABELS` +
-		`____________STATUS_______PUBLIC_IP
-3__________________image1_cmd_1________________________Running______
-____________________________________________________________________
-1_____Machine-5____image2____________label1,_label2____Scheduled____7.7.7.7:80
-4_____Machine-5____image3_cmd________label1____________Scheduled____7.7.7.7:80
-____________________________________________________________________
-7_____Machine-6____image1_cmd_3_4____label1____________Scheduled____
-____________________________________________________________________
-8_____Machine-7____image1___________________________________________
+		`____________STATUS_______CREATED____PUBLIC_IP
+3__________________image1_cmd_1________________________running_________________
+_______________________________________________________________________________
+1_____Machine-5____image2____________label1,_label2____scheduled_______________7.7.7.7:80
+4_____Machine-5____image3_cmd________label1____________scheduled_______________7.7.7.7:80
+_______________________________________________________________________________
+7_____Machine-6____image1_cmd_3_4____label1____________scheduled_______________
+_______________________________________________________________________________
+8_____Machine-7____image1______________________________________________________
 `
 
+	assert.Equal(t, expected, result)
+
+	// Testing writeContainers with created time values.
+	mockTime := time.Now()
+	humanDuration := units.HumanDuration(time.Since(mockTime))
+	mockCreatedString := fmt.Sprintf("%s ago", humanDuration)
+	mockCreatedString = strings.Replace(mockCreatedString, " ", "_", -1)
+
+	containers = []db.Container{
+		{ID: 1, StitchID: 3, Minion: "3.3.3.3", IP: "1.2.3.4",
+			Image: "image1", Command: []string{"cmd", "1"},
+			Status: "running", Created: mockTime.UTC()},
+	}
+
+	machines = []db.Machine{}
+	connections = []db.Connection{}
+
+	var c bytes.Buffer
+	writeContainers(&c, containers, machines, connections)
+	result = string(c.Bytes())
+	expected = "ID____MACHINE____CONTAINER_______LABELS" +
+		"____STATUS_____CREATED___________________PUBLIC_IP\n" +
+		"3________________image1_cmd_1______________running____" +
+		mockCreatedString + "____\n"
+
+	result = strings.Replace(result, " ", "_", -1)
+	assert.Equal(t, expected, result)
+
+	// Testing writeContainers with longer durations.
+	mockDuration := time.Hour
+	mockTime = time.Now().Add(-mockDuration)
+	humanDuration = units.HumanDuration(time.Since(mockTime))
+	mockCreatedString = fmt.Sprintf("%s ago", humanDuration)
+	mockCreatedString = strings.Replace(mockCreatedString, " ", "_", -1)
+
+	containers = []db.Container{
+		{ID: 1, StitchID: 3, Minion: "3.3.3.3", IP: "1.2.3.4",
+			Image: "image1", Command: []string{"cmd", "1"},
+			Status: "running", Created: mockTime.UTC()},
+	}
+
+	machines = []db.Machine{}
+	connections = []db.Connection{}
+
+	var d bytes.Buffer
+	writeContainers(&d, containers, machines, connections)
+	result = string(d.Bytes())
+	expected = "ID____MACHINE____CONTAINER_______LABELS" +
+		"____STATUS_____CREATED______________PUBLIC_IP\n" +
+		"3________________image1_cmd_1______________running____" +
+		mockCreatedString + "____\n"
+
+	result = strings.Replace(result, " ", "_", -1)
 	assert.Equal(t, expected, result)
 }
 

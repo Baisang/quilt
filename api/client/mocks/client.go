@@ -13,7 +13,8 @@ type Client struct {
 	HostReturn      string
 	DeployArg       string
 
-	MachineErr, ContainerErr, EtcdErr, ClusterErr, HostErr, DeployErr error
+	MachineErr, ContainerErr, EtcdErr, ClusterErr, HostErr error
+	DeployErr, ConnectionErr                               error
 }
 
 // QueryMachines retrieves the machines tracked by the Quilt daemon.
@@ -43,6 +44,9 @@ func (c *Client) QueryEtcd() ([]db.Etcd, error) {
 // QueryConnections retrieves the connection information tracked by the
 // Quilt daemon.
 func (c *Client) QueryConnections() ([]db.Connection, error) {
+	if c.ConnectionErr != nil {
+		return nil, c.ConnectionErr
+	}
 	return nil, nil
 }
 
