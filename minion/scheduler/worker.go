@@ -89,13 +89,12 @@ func syncWorker(dbcs []db.Container, dkcs []docker.Container, subnet net.IPNet) 
 	for _, pair := range pairs {
 		dbc := pair.L.(db.Container)
 		dkc := pair.R.(docker.Container)
-
-		if dbc.DockerID != dkc.ID {
-			dbc.DockerID = dkc.ID
-			dbc.IP = dkc.IP
-			dbc.EndpointID = dkc.EID
-			changed = append(changed, dbc)
-		}
+		dbc.DockerID = dkc.ID
+		dbc.IP = dkc.IP
+		dbc.EndpointID = dkc.EID
+		dbc.Status = dkc.Status
+		dbc.Created = dkc.Created
+		changed = append(changed, dbc)
 	}
 
 	for _, i := range dbci {

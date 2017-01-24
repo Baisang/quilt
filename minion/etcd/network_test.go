@@ -7,6 +7,7 @@ import (
 	"path"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/NetSys/quilt/db"
 
@@ -62,6 +63,11 @@ func TestUpdateEtcdContainers(t *testing.T) {
 
 	resultSlice := []db.Container{}
 	json.Unmarshal([]byte(resultContainers), &resultSlice)
+
+	// Zero out time values so assert doesn't fail checking == for time.
+	for i := 0; i < len(resultSlice); i++ {
+		resultSlice[i].Created = time.Time{}
+	}
 	assert.Equal(t, cs, resultSlice)
 
 	// etcd and the db agree, there should be no writes
@@ -110,6 +116,9 @@ func TestUpdateEtcdContainers(t *testing.T) {
 	resultSlice = []db.Container{}
 	json.Unmarshal([]byte(resultContainers), &resultSlice)
 
+	for i := 0; i < len(resultSlice); i++ {
+		resultSlice[i].Created = time.Time{}
+	}
 	assert.Equal(t, cs, resultSlice)
 	assert.Equal(t, cs, etcdDBCs)
 

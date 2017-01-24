@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/NetSys/quilt/util"
 )
@@ -20,9 +21,11 @@ type Container struct {
 	StitchID   int               `json:",omitempty"`
 	DockerID   string            `json:",omitempty"`
 	Image      string            `json:",omitempty"`
+	Status     string            `json:",omitempty"`
 	Command    []string          `json:",omitempty"`
 	Labels     []string          `json:",omitempty"`
 	Env        map[string]string `json:",omitempty"`
+	Created    time.Time         `json:","`
 }
 
 // ContainerSlice is an alias for []Container to allow for joins
@@ -89,6 +92,14 @@ func (c Container) String() string {
 
 	if len(c.Env) > 0 {
 		tags = append(tags, fmt.Sprintf("Env: %s", c.Env))
+	}
+
+	if len(c.Status) > 0 {
+		tags = append(tags, fmt.Sprintf("Status: %s", c.Status))
+	}
+
+	if !c.Created.IsZero() {
+		tags = append(tags, fmt.Sprintf("Created: %s", c.Created.String()))
 	}
 
 	return fmt.Sprintf("Container-%d{%s}", c.ID, strings.Join(tags, ", "))

@@ -59,7 +59,7 @@ func TestContainerResponse(t *testing.T) {
 	})
 
 	exp := `[{"DockerID":"docker-id","Image":"image","Command":["cmd","arg"],` +
-		`"Labels":["labelA","labelB"]}]`
+		`"Labels":["labelA","labelB"],"Created":"0001-01-01T00:00:00Z"}]`
 
 	checkQuery(t, server{conn}, db.ContainerTable, exp)
 }

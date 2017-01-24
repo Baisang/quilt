@@ -25,17 +25,19 @@ var ErrNoSuchContainer = errors.New("container does not exist")
 
 // A Container as returned by the docker client API.
 type Container struct {
-	ID     string
-	EID    string
-	Name   string
-	Image  string
-	IP     string
-	Mac    string
-	Path   string
-	Args   []string
-	Pid    int
-	Env    map[string]string
-	Labels map[string]string
+	ID      string
+	EID     string
+	Name    string
+	Image   string
+	IP      string
+	Mac     string
+	Path    string
+	Status  string
+	Args    []string
+	Pid     int
+	Env     map[string]string
+	Labels  map[string]string
+	Created time.Time
 }
 
 // ContainerSlice is an alias for []Container to allow for joins
@@ -304,17 +306,19 @@ func (dk Client) Get(id string) (Container, error) {
 	}
 
 	c := Container{
-		Name:   dkc.Name,
-		ID:     dkc.ID,
-		IP:     dkc.NetworkSettings.IPAddress,
-		Mac:    dkc.NetworkSettings.MacAddress,
-		EID:    dkc.NetworkSettings.EndpointID,
-		Image:  dkc.Config.Image,
-		Path:   dkc.Path,
-		Args:   dkc.Args,
-		Pid:    dkc.State.Pid,
-		Env:    env,
-		Labels: dkc.Config.Labels,
+		Name:    dkc.Name,
+		ID:      dkc.ID,
+		IP:      dkc.NetworkSettings.IPAddress,
+		Mac:     dkc.NetworkSettings.MacAddress,
+		EID:     dkc.NetworkSettings.EndpointID,
+		Image:   dkc.Config.Image,
+		Path:    dkc.Path,
+		Args:    dkc.Args,
+		Pid:     dkc.State.Pid,
+		Env:     env,
+		Labels:  dkc.Config.Labels,
+		Status:  dkc.State.Status,
+		Created: dkc.Created,
 	}
 
 	networks := keys(dkc.NetworkSettings.Networks)
