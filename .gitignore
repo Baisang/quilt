@@ -25,8 +25,8 @@ _testmain.go
 
 quilt
 
+*.cov
 *.cov.html
-*.cov.out
 *.coverprofile
 
 *.pdf
