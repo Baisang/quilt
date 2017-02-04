@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/quilt/quilt/cluster/machine"
 	"github.com/quilt/quilt/db"
 	"github.com/quilt/quilt/minion/pb"
 
@@ -66,7 +67,7 @@ func Init(conn db.Conn) {
 	})
 }
 
-// RunOnce should be called regularly to allow the foreman to update minion roles.
+// RunOnce should be called regularly to allow the foreman to update minion cfg.
 func RunOnce(conn db.Conn) {
 	var spec string
 	var machines []db.Machine
@@ -74,7 +75,7 @@ func RunOnce(conn db.Conn) {
 		db.MachineTable).Run(func(view db.Database) error {
 
 		machines = view.SelectFromMachine(func(m db.Machine) bool {
-			return m.PublicIP != "" && m.PrivateIP != "" && m.CloudID != ""
+			return m.PublicIP != "" && m.PrivateIP != ""
 		})
 
 		clst, _ := view.GetCluster()
@@ -111,7 +112,6 @@ func RunOnce(conn db.Conn) {
 		}
 
 		newConfig := pb.MinionConfig{
-			Role:           db.RoleToPB(m.machine.Role),
 			PrivateIP:      m.machine.PrivateIP,
 			Spec:           spec,
 			Provider:       string(m.machine.Provider),
@@ -130,6 +130,22 @@ func RunOnce(conn db.Conn) {
 			return
 		}
 	})
+}
+
+// GetMachineRoles uses the minion map to find the associated minion with
+// the machine, according to the foreman's last update cycle. The role of the
+// minion is then added to the machine.Machine struct, and the updated slice is
+// returned.
+func GetMachineRoles(machines []machine.Machine) []machine.Machine {
+	var updatedMachines []machine.Machine
+	for _, m := range machines {
+		min, ok := minions[m.PublicIP]
+		if ok {
+			m.Role = db.PBToRole(min.config.Role)
+		}
+		updatedMachines = append(updatedMachines, m)
+	}
+	return updatedMachines
 }
 
 func updateMinionMap(machines []db.Machine) {

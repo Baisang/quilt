@@ -262,7 +262,10 @@ func (clst cluster) join() (joinResult, error) {
 			dbm := pair.L.(db.Machine)
 			m := pair.R.(machine.Machine)
 
-			dbm.CloudID = m.ID
+			if m.Role != db.None && m.Role == dbm.Role {
+				dbm.CloudID = m.ID
+			}
+
 			dbm.PublicIP = m.PublicIP
 			dbm.PrivateIP = m.PrivateIP
 
@@ -352,14 +355,18 @@ type syncDBResult struct {
 
 func syncDB(cms []machine.Machine, dbms []db.Machine) syncDBResult {
 	ret := syncDBResult{}
+	cms = foreman.GetMachineRoles(cms)
 
 	pair1, dbmis, cmis := join.Join(dbms, cms, func(l, r interface{}) int {
 		dbm := l.(db.Machine)
 		m := r.(machine.Machine)
 
-		if dbm.CloudID == m.ID && dbm.Provider == m.Provider &&
+		// Don't join if m.ID and dbm.CloudID are empty.
+		if m.ID != "" && dbm.CloudID == m.ID &&
+			dbm.Provider == m.Provider &&
 			dbm.Region == m.Region && dbm.Size == m.Size &&
-			(m.DiskSize == 0 || dbm.DiskSize == m.DiskSize) {
+			(m.DiskSize == 0 || dbm.DiskSize == m.DiskSize) &&
+			(m.Role == db.None || dbm.Role == m.Role) {
 			return 0
 		}
 
@@ -374,16 +381,19 @@ func syncDB(cms []machine.Machine, dbms []db.Machine) syncDBResult {
 		case dbm.Provider != m.Provider ||
 			dbm.Region != m.Region ||
 			dbm.Size != m.Size ||
-			(m.DiskSize != 0 && dbm.DiskSize != m.DiskSize):
+			(m.DiskSize != 0 && dbm.DiskSize != m.DiskSize) ||
+			(m.Role != db.None && dbm.Role != m.Role):
 			return -1
-		case dbm.CloudID == m.ID:
+		case m.ID != "" && dbm.CloudID == m.ID:
 			panic("Not Reached") // Should have been hit by the first join.
-		case dbm.FloatingIP == m.FloatingIP:
+		case m.Role != db.None && dbm.Role == m.Role:
 			return 1
-		case dbm.PublicIP == m.PublicIP || dbm.PrivateIP == m.PrivateIP:
+		case dbm.FloatingIP == m.FloatingIP:
 			return 2
-		default:
+		case dbm.PublicIP == m.PublicIP || dbm.PrivateIP == m.PrivateIP:
 			return 3
+		default:
+			return 4
 		}
 	})
 
@@ -398,7 +408,9 @@ func syncDB(cms []machine.Machine, dbms []db.Machine) syncDBResult {
 			Provider: m.Provider,
 			Region:   m.Region,
 			DiskSize: m.DiskSize,
-			SSHKeys:  m.SSHKeys})
+			SSHKeys:  m.SSHKeys,
+			Role:     m.Role,
+		})
 	}
 
 	for _, pair := range append(pair1, pair2...) {

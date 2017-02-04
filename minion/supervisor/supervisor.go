@@ -123,8 +123,6 @@ func (sv *supervisor) runSystemOnce() {
 			etcdRow.EtcdIPs)
 	}
 
-	sv.SetInit()
-
 	sv.etcdIPs = etcdRow.EtcdIPs
 	sv.leaderIP = etcdRow.LeaderIP
 	sv.IP = minion.PrivateIP
@@ -176,6 +174,8 @@ func (sv *supervisor) updateWorker(IP string, leaderIP string, etcdIPs []string)
 	 * So, we need to restart the container when the leader changes. */
 	sv.Remove(Ovncontroller)
 	sv.run(Ovncontroller, "ovn-controller")
+
+	sv.SetInit()
 }
 
 func (sv *supervisor) updateMaster(IP string, etcdIPs []string, leader bool) {
@@ -207,6 +207,8 @@ func (sv *supervisor) updateMaster(IP string, etcdIPs []string, leader bool) {
 	} else {
 		sv.Remove(Ovnnorthd)
 	}
+
+	sv.SetInit()
 }
 
 func (sv *supervisor) run(name string, args ...string) {

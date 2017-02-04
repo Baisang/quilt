@@ -28,6 +28,7 @@ type providerRequest struct {
 type bootRequest struct {
 	size        string
 	cloudConfig string
+	role        db.Role
 }
 
 type ipRequest struct {
@@ -167,6 +168,11 @@ func TestSyncDB(t *testing.T) {
 	cmLarge := machine.Machine{Provider: FakeAmazon, Size: "m4.large",
 		Region: testRegion}
 
+	dbMaster := db.Machine{Provider: FakeAmazon, Role: db.Master}
+	cmMaster := machine.Machine{Provider: FakeAmazon, Role: db.Master}
+	dbWorker := db.Machine{Provider: FakeAmazon, Role: db.Worker}
+	cmWorker := machine.Machine{Provider: FakeAmazon, Role: db.Worker}
+
 	cmNoIP := machine.Machine{Provider: FakeAmazon}
 	cmWithIP := machine.Machine{Provider: FakeAmazon, FloatingIP: "ip"}
 	dbNoIP := db.Machine{Provider: FakeAmazon}
@@ -227,6 +233,26 @@ func TestSyncDB(t *testing.T) {
 			boot: []machine.Machine{{DiskSize: 4}},
 		})
 
+	// Test different roles
+	checkSyncDB([]machine.Machine{cmWorker}, []db.Machine{dbMaster}, syncDBResult{
+		boot: []machine.Machine{cmMaster},
+		stop: []machine.Machine{cmWorker},
+	})
+
+	checkSyncDB([]machine.Machine{cmMaster}, []db.Machine{dbWorker}, syncDBResult{
+		boot: []machine.Machine{cmWorker},
+		stop: []machine.Machine{cmMaster},
+	})
+
+	// Test matching role as priority over PublicIP
+	dbMaster.PublicIP = "worker"
+	cmMaster.PublicIP = "master"
+	dbWorker.PublicIP = "master"
+	cmWorker.PublicIP = "worker"
+
+	checkSyncDB([]machine.Machine{cmMaster, cmWorker},
+		[]db.Machine{dbMaster, dbWorker},
+		syncDBResult{})
 }
 
 func TestSync(t *testing.T) {
@@ -401,6 +427,43 @@ func TestSync(t *testing.T) {
 
 		return nil
 	})
+	checkSync(clst, FakeAmazon, testRegion, assertion{
+		boot: []bootRequest{amazonXLargeBoot},
+		stop: []string{toRemove.CloudID},
+	})
+
+	// Test adding machine with different role
+	clst.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
+		m := view.InsertMachine()
+		m.Role = db.Master
+		m.Provider = FakeAmazon
+		m.Size = "m4.xlarge"
+		m.Region = testRegion
+		view.Commit(m)
+
+		return nil
+	})
+
+	checkSync(clst, FakeAmazon, testRegion, assertion{
+		boot: []bootRequest{amazonXLargeBoot},
+	})
+
+	clst.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
+		toRemove = view.SelectFromMachine(func(m db.Machine) bool {
+			return m.Role == db.Master && m.Size == "m4.xlarge" &&
+				m.Provider == FakeAmazon
+		})[0]
+		view.Remove(toRemove)
+		m := view.InsertMachine()
+		m.Role = db.Worker
+		m.Provider = FakeAmazon
+		m.Size = "m4.xlarge"
+		m.Region = testRegion
+		view.Commit(m)
+
+		return nil
+	})
+
 	checkSync(clst, FakeAmazon, testRegion, assertion{
 		boot: []bootRequest{amazonXLargeBoot},
 		stop: []string{toRemove.CloudID},

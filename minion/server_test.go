@@ -16,7 +16,6 @@ func TestSetMinionConfig(t *testing.T) {
 	s := server{db.New()}
 
 	cfg := pb.MinionConfig{
-		Role:           pb.MinionConfig_MASTER,
 		PrivateIP:      "priv",
 		Spec:           "spec",
 		Provider:       "provider",
@@ -28,7 +27,6 @@ func TestSetMinionConfig(t *testing.T) {
 	expMinion := db.Minion{
 		Self:           true,
 		Spec:           "spec",
-		Role:           db.Master,
 		PrivateIP:      "priv",
 		Provider:       "provider",
 		Size:           "size",

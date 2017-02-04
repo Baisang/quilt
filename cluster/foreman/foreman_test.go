@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/quilt/quilt/cluster/machine"
 	"github.com/quilt/quilt/db"
 	"github.com/quilt/quilt/minion/pb"
 )
@@ -147,6 +148,31 @@ func TestBootEtcd(t *testing.T) {
 		clients.clients["w1-pub"].mc.EtcdMembers)
 }
 
+func TestGetMachineRoles(t *testing.T) {
+	machines := []machine.Machine{
+		{
+			PublicIP: "1.1.1.1",
+		},
+		{
+			PublicIP: "2.2.2.2",
+		},
+	}
+	workerMinion := minion{
+		config: pb.MinionConfig{
+			Role: pb.MinionConfig_WORKER,
+		},
+	}
+	minions = map[string]*minion{
+		"1.1.1.1": &workerMinion,
+	}
+
+	updatedMachines := GetMachineRoles(machines)
+	assert.Equal(t, db.Role(db.Worker), updatedMachines[0].Role)
+	assert.Equal(t, db.Role(db.None), updatedMachines[1].Role)
+
+	minions = map[string]*minion{}
+}
+
 func TestInitForeman(t *testing.T) {
 	conn := startTestWithRole(pb.MinionConfig_WORKER)
 	conn.Txn(db.AllTables...).Run(func(view db.Database) error {
@@ -168,79 +194,6 @@ func TestInitForeman(t *testing.T) {
 	for _, m := range minions {
 		assert.Equal(t, db.None, m.machine.Role)
 	}
-}
-
-func TestConfigConsistency(t *testing.T) {
-	masterRole := db.RoleToPB(db.Master)
-	workerRole := db.RoleToPB(db.Worker)
-
-	conn, clients := startTest()
-	var master, worker db.Machine
-	conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		master = view.InsertMachine()
-		master.PublicIP = "1.1.1.1"
-		master.PrivateIP = master.PublicIP
-		master.CloudID = "ID1"
-		view.Commit(master)
-		worker = view.InsertMachine()
-		worker.PublicIP = "2.2.2.2"
-		worker.PrivateIP = worker.PublicIP
-		worker.CloudID = "ID2"
-		view.Commit(worker)
-		return nil
-	})
-
-	Init(conn)
-	conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		master.Role = db.Master
-		worker.Role = db.Worker
-		view.Commit(master)
-		view.Commit(worker)
-		return nil
-	})
-
-	RunOnce(conn)
-	checkRoles := func() {
-		r := minions["1.1.1.1"].client.(*fakeClient).mc.Role
-		assert.Equal(t, masterRole, r)
-
-		r = minions["2.2.2.2"].client.(*fakeClient).mc.Role
-		assert.Equal(t, workerRole, r)
-	}
-	checkRoles()
-
-	minions = map[string]*minion{}
-
-	// Insert the clients into the client list to simulate fetching
-	// from the remote cluster
-	clients.clients["1.1.1.1"] = &fakeClient{clients, "1.1.1.1",
-		pb.MinionConfig{Role: masterRole}}
-	clients.clients["2.2.2.2"] = &fakeClient{clients, "2.2.2.2",
-		pb.MinionConfig{Role: workerRole}}
-
-	Init(conn)
-	RunOnce(conn)
-	checkRoles()
-
-	// After many runs, the roles should never change
-	for i := 0; i < 25; i++ {
-		RunOnce(conn)
-	}
-	checkRoles()
-
-	// Ensure that the DB machines have the correct roles as well.
-	conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		machines := view.SelectFromMachine(nil)
-		for _, m := range machines {
-			if m.PublicIP == "1.1.1.1" {
-				assert.Equal(t, db.Role(db.Master), m.Role)
-			}
-			if m.PublicIP == "2.2.2.2" {
-				assert.Equal(t, db.Role(db.Worker), m.Role)
-			}
-		}
-		return nil
-	})
 }
 
 func startTest() (db.Conn, *clients) {

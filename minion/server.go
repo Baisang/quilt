@@ -73,11 +73,10 @@ func (s server) SetMinionConfig(ctx context.Context,
 
 		minion, err := view.MinionSelf()
 		if err != nil {
-			log.Info("Received initial configuation.")
+			log.WithError(err).Error("Role not obtained from cloudcfg.")
 			minion = view.InsertMinion()
 		}
 
-		minion.Role = db.PBToRole(msg.Role)
 		minion.PrivateIP = msg.PrivateIP
 		minion.Spec = msg.Spec
 		minion.Provider = msg.Provider

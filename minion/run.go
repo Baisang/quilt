@@ -30,9 +30,6 @@ func Run(role db.Role) {
 	conn := db.New()
 	dk := docker.New("unix:///var/run/docker.sock")
 
-	// Not in a goroutine, want the plugin to start before the scheduler
-	plugin.Run()
-
 	// XXX: As we are developing minion modules to use this passed down role
 	// instead of querying their db independently, we need to do this.
 	// Possibly in the future just pass down role into all of the modules,
@@ -48,6 +45,9 @@ func Run(role db.Role) {
 		view.Commit(minion)
 		return nil
 	})
+
+	// Not in a goroutine, want the plugin to start before the scheduler
+	plugin.Run()
 
 	go minionServerRun(conn)
 	go supervisor.Run(conn, dk, role)
