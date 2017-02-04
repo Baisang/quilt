@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"text/template"
+
+	"github.com/quilt/quilt/db"
 )
 
 const (
@@ -12,7 +14,7 @@ const (
 
 // Ubuntu generates a cloud config file for the Ubuntu operating system with the
 // corresponding `version`.
-func Ubuntu(keys []string, version string) string {
+func Ubuntu(keys []string, version string, role db.Role) string {
 	t := template.Must(template.New("cloudConfig").Parse(cfgTemplate))
 
 	var cloudConfigBytes bytes.Buffer
@@ -20,10 +22,12 @@ func Ubuntu(keys []string, version string) string {
 		QuiltImage    string
 		UbuntuVersion string
 		SSHKeys       string
+		Role          string
 	}{
 		QuiltImage:    quiltImage,
 		UbuntuVersion: version,
 		SSHKeys:       strings.Join(keys, "\n"),
+		Role:          string(role),
 	})
 	if err != nil {
 		panic(err)

@@ -69,8 +69,8 @@ type supervisor struct {
 }
 
 // Run blocks implementing the supervisor module.
-func Run(conn db.Conn, dk docker.Client) {
-	sv := supervisor{conn: conn, dk: dk}
+func Run(conn db.Conn, dk docker.Client, role db.Role) {
+	sv := supervisor{conn: conn, dk: dk, role: role}
 	sv.runSystem()
 }
 
@@ -104,8 +104,7 @@ func (sv *supervisor) runSystemOnce() {
 		etcdRow = etcdRows[0]
 	}
 
-	if sv.role == minion.Role &&
-		reflect.DeepEqual(sv.etcdIPs, etcdRow.EtcdIPs) &&
+	if reflect.DeepEqual(sv.etcdIPs, etcdRow.EtcdIPs) &&
 		sv.leaderIP == etcdRow.LeaderIP &&
 		sv.IP == minion.PrivateIP &&
 		sv.leader == etcdRow.Leader &&
@@ -115,12 +114,7 @@ func (sv *supervisor) runSystemOnce() {
 		return
 	}
 
-	if minion.Role != sv.role {
-		sv.SetInit(false)
-		sv.RemoveAll()
-	}
-
-	switch minion.Role {
+	switch sv.role {
 	case db.Master:
 		sv.updateMaster(minion.PrivateIP, etcdRow.EtcdIPs,
 			etcdRow.Leader)
@@ -129,7 +123,8 @@ func (sv *supervisor) runSystemOnce() {
 			etcdRow.EtcdIPs)
 	}
 
-	sv.role = minion.Role
+	sv.SetInit()
+
 	sv.etcdIPs = etcdRow.EtcdIPs
 	sv.leaderIP = etcdRow.LeaderIP
 	sv.IP = minion.PrivateIP
@@ -181,7 +176,6 @@ func (sv *supervisor) updateWorker(IP string, leaderIP string, etcdIPs []string)
 	 * So, we need to restart the container when the leader changes. */
 	sv.Remove(Ovncontroller)
 	sv.run(Ovncontroller, "ovn-controller")
-	sv.SetInit(true)
 }
 
 func (sv *supervisor) updateMaster(IP string, etcdIPs []string, leader bool) {
@@ -213,8 +207,6 @@ func (sv *supervisor) updateMaster(IP string, etcdIPs []string, leader bool) {
 	} else {
 		sv.Remove(Ovnnorthd)
 	}
-
-	sv.SetInit(true)
 }
 
 func (sv *supervisor) run(name string, args ...string) {
@@ -254,21 +246,15 @@ func (sv *supervisor) Remove(name string) {
 	}
 }
 
-func (sv *supervisor) SetInit(init bool) {
+func (sv *supervisor) SetInit() {
 	sv.conn.Txn(db.MinionTable).Run(func(view db.Database) error {
 		self, err := view.MinionSelf()
 		if err == nil {
-			self.SupervisorInit = init
+			self.SupervisorInit = true
 			view.Commit(self)
 		}
 		return err
 	})
-}
-
-func (sv *supervisor) RemoveAll() {
-	for name := range images {
-		sv.Remove(name)
-	}
 }
 
 func initialClusterString(etcdIPs []string) string {

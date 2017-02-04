@@ -16,7 +16,7 @@ import (
 )
 
 func TestNone(t *testing.T) {
-	ctx := initTest()
+	ctx := initTest(db.Master)
 
 	if len(ctx.fd.running()) > 0 {
 		t.Errorf("fd.running = %s; want <empty>", spew.Sdump(ctx.fd.running()))
@@ -48,7 +48,7 @@ func TestNone(t *testing.T) {
 }
 
 func TestMaster(t *testing.T) {
-	ctx := initTest()
+	ctx := initTest(db.Master)
 	ip := "1.2.3.4"
 	etcdIPs := []string{""}
 	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
@@ -131,7 +131,7 @@ func TestMaster(t *testing.T) {
 }
 
 func TestWorker(t *testing.T) {
-	ctx := initTest()
+	ctx := initTest(db.Worker)
 	ip := "1.2.3.4"
 	etcdIPs := []string{ip}
 	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
@@ -190,89 +190,8 @@ func TestWorker(t *testing.T) {
 	}
 }
 
-func TestChange(t *testing.T) {
-	ctx := initTest()
-	ip := "1.2.3.4"
-	leaderIP := "5.6.7.8"
-	etcdIPs := []string{ip, leaderIP}
-	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		m, _ := view.MinionSelf()
-		e := view.SelectFromEtcd(nil)[0]
-		m.Role = db.Worker
-		m.PrivateIP = ip
-		e.EtcdIPs = etcdIPs
-		e.LeaderIP = leaderIP
-		view.Commit(m)
-		view.Commit(e)
-		return nil
-	})
-	ctx.run()
-
-	exp := map[string][]string{
-		Etcd:          etcdArgsWorker(etcdIPs),
-		Ovsdb:         {"ovsdb-server"},
-		Ovncontroller: {"ovn-controller"},
-		Ovsvswitchd:   {"ovs-vswitchd"},
-	}
-	if !reflect.DeepEqual(ctx.fd.running(), exp) {
-		t.Errorf("fd.running = %s\n\nwant %s", spew.Sdump(ctx.fd.running()),
-			spew.Sdump(exp))
-	}
-
-	execExp := ovsExecArgs(ip, leaderIP)
-	if !reflect.DeepEqual(ctx.execs, execExp) {
-		t.Errorf("execs = %s\n\nwant %s", spew.Sdump(ctx.execs), spew.Sdump(exp))
-	}
-
-	ctx.fd.md.ResetExec()
-	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		m, _ := view.MinionSelf()
-		m.Role = db.Master
-		view.Commit(m)
-		return nil
-	})
-	ctx.run()
-
-	exp = map[string][]string{
-		Etcd:     etcdArgsMaster(ip, etcdIPs),
-		Ovsdb:    {"ovsdb-server"},
-		Registry: nil,
-	}
-	if !reflect.DeepEqual(ctx.fd.running(), exp) {
-		t.Errorf("fd.running = %s\n\nwant %s", spew.Sdump(ctx.fd.running()),
-			spew.Sdump(exp))
-	}
-	if len(ctx.execs) > 0 {
-		t.Errorf("exec = %s; want <empty>", spew.Sdump(ctx.execs))
-	}
-
-	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		m, _ := view.MinionSelf()
-		m.Role = db.Worker
-		view.Commit(m)
-		return nil
-	})
-	ctx.run()
-
-	exp = map[string][]string{
-		Etcd:          etcdArgsWorker(etcdIPs),
-		Ovsdb:         {"ovsdb-server"},
-		Ovncontroller: {"ovn-controller"},
-		Ovsvswitchd:   {"ovs-vswitchd"},
-	}
-	if !reflect.DeepEqual(ctx.fd.running(), exp) {
-		t.Errorf("fd.running = %s\n\nwant %s", spew.Sdump(ctx.fd.running()),
-			spew.Sdump(exp))
-	}
-
-	execExp = ovsExecArgs(ip, leaderIP)
-	if !reflect.DeepEqual(ctx.execs, execExp) {
-		t.Errorf("execs = %s\n\nwant %s", spew.Sdump(ctx.execs), spew.Sdump(exp))
-	}
-}
-
 func TestEtcdAdd(t *testing.T) {
-	ctx := initTest()
+	ctx := initTest(db.Master)
 	ip := "1.2.3.4"
 	etcdIPs := []string{ip, "5.6.7.8"}
 	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
@@ -322,7 +241,7 @@ func TestEtcdAdd(t *testing.T) {
 }
 
 func TestEtcdRemove(t *testing.T) {
-	ctx := initTest()
+	ctx := initTest(db.Master)
 	ip := "1.2.3.4"
 	etcdIPs := []string{ip, "5.6.7.8"}
 	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
@@ -428,13 +347,14 @@ type testCtx struct {
 	trigg db.Trigger
 }
 
-func initTest() *testCtx {
+func initTest(role db.Role) *testCtx {
 	conn := db.New()
 	md, dk := docker.NewMock()
 	ctx := testCtx{supervisor{}, fakeDocker{dk, md}, nil, conn,
 		conn.Trigger(db.MinionTable, db.EtcdTable)}
 	ctx.sv.conn = ctx.conn
 	ctx.sv.dk = ctx.fd.Client
+	ctx.sv.role = role
 
 	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
 		m := view.InsertMinion()

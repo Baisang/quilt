@@ -21,7 +21,7 @@ import (
 )
 
 // Run blocks executing the minion.
-func Run() {
+func Run(role db.Role) {
 	// XXX Uncomment the following line to run the profiler
 	//runProfiler(5 * time.Minute)
 
@@ -33,8 +33,24 @@ func Run() {
 	// Not in a goroutine, want the plugin to start before the scheduler
 	plugin.Run()
 
+	// XXX: As we are developing minion modules to use this passed down role
+	// instead of querying their db independently, we need to do this.
+	// Possibly in the future just pass down role into all of the modules,
+	// but may be simpler to just have it use this entry.
+	conn.Txn(db.MinionTable).Run(func(view db.Database) error {
+		minion, err := view.MinionSelf()
+		if err != nil {
+			log.Info("Using role from cloudcfg.")
+			minion = view.InsertMinion()
+		}
+		minion.Role = role
+		minion.Self = true
+		view.Commit(minion)
+		return nil
+	})
+
 	go minionServerRun(conn)
-	go supervisor.Run(conn, dk)
+	go supervisor.Run(conn, dk, role)
 	go scheduler.Run(conn, dk)
 	go network.Run(conn)
 	go registry.Run(conn, dk)

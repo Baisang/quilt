@@ -91,7 +91,7 @@ func (clst *Cluster) Boot(bootSet []machine.Machine) error {
 	bootReqMap := make(map[bootReq]int64) // From boot request to an instance count.
 	for _, m := range bootSet {
 		br := bootReq{
-			cfg:      cloudcfg.Ubuntu(m.SSHKeys, "xenial"),
+			cfg:      cloudcfg.Ubuntu(m.SSHKeys, "xenial", m.Role),
 			size:     m.Size,
 			diskSize: m.DiskSize,
 		}

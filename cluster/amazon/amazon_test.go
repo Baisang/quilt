@@ -421,16 +421,18 @@ func TestBoot(t *testing.T) {
 			Region:   DefaultRegion,
 			Size:     "m4.large",
 			DiskSize: 32,
+			Role:     db.Master,
 		},
 		{
 			Region:   DefaultRegion,
 			Size:     "m4.large",
 			DiskSize: 32,
+			Role:     db.Master,
 		},
 	})
 	assert.Nil(t, err)
 
-	cfg := cloudcfg.Ubuntu(nil, "xenial")
+	cfg := cloudcfg.Ubuntu(nil, "xenial", db.Master)
 	mc.AssertCalled(t, "RequestSpotInstances",
 		&ec2.RequestSpotInstancesInput{
 			SpotPrice: aws.String(spotPrice),

@@ -28,6 +28,7 @@ type Machine struct {
 	SSHKeys    []string
 	Provider   db.Provider
 	Region     string
+	Role       db.Role
 }
 
 // ChooseSize returns an acceptable machine size for the given provider that fits the
