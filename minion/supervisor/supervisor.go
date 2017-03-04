@@ -2,15 +2,11 @@ package supervisor
 
 import (
 	"fmt"
-	"net"
 	"os/exec"
-	"reflect"
 	"strings"
 
 	"github.com/quilt/quilt/db"
 	"github.com/quilt/quilt/minion/docker"
-	"github.com/quilt/quilt/minion/ipdef"
-	"github.com/quilt/quilt/util"
 	"github.com/vishvananda/netlink"
 
 	log "github.com/Sirupsen/logrus"
@@ -54,165 +50,38 @@ var images = map[string]string{
 const etcdHeartbeatInterval = "500"
 const etcdElectionTimeout = "5000"
 
-type supervisor struct {
-	conn db.Conn
-	dk   docker.Client
-
-	role     db.Role
-	etcdIPs  []string
-	leaderIP string
-	IP       string
-	leader   bool
-	provider string
-	region   string
-	size     string
-}
+var conn db.Conn
+var dk docker.Client
+var role db.Role
+var oldEtcdIPs []string
+var oldIP string
 
 // Run blocks implementing the supervisor module.
-func Run(conn db.Conn, dk docker.Client, role db.Role) {
-	sv := supervisor{conn: conn, dk: dk, role: role}
-	sv.runSystem()
-}
+func Run(_conn db.Conn, _dk docker.Client, _role db.Role) {
+	conn = _conn
+	dk = _dk
+	role = _role
 
-// Manage system infrstracture containers that support the application.
-func (sv *supervisor) runSystem() {
 	imageSet := map[string]struct{}{}
 	for _, image := range images {
 		imageSet[image] = struct{}{}
 	}
 
 	for image := range imageSet {
-		go sv.dk.Pull(image)
+		go dk.Pull(image)
 	}
 
-	loopLog := util.NewEventTimer("Supervisor")
-	for range sv.conn.Trigger(db.MinionTable, db.EtcdTable).C {
-		loopLog.LogStart()
-		sv.runSystemOnce()
-		loopLog.LogEnd()
-	}
-}
-
-func (sv *supervisor) runSystemOnce() {
-	minion, err := sv.conn.MinionSelf()
-	if err != nil {
-		return
-	}
-
-	var etcdRow db.Etcd
-	if etcdRows := sv.conn.SelectFromEtcd(nil); len(etcdRows) == 1 {
-		etcdRow = etcdRows[0]
-	}
-
-	if reflect.DeepEqual(sv.etcdIPs, etcdRow.EtcdIPs) &&
-		sv.leaderIP == etcdRow.LeaderIP &&
-		sv.IP == minion.PrivateIP &&
-		sv.leader == etcdRow.Leader &&
-		sv.provider == minion.Provider &&
-		sv.region == minion.Region &&
-		sv.size == minion.Size {
-		return
-	}
-
-	switch sv.role {
+	switch role {
 	case db.Master:
-		sv.updateMaster(minion.PrivateIP, etcdRow.EtcdIPs,
-			etcdRow.Leader)
+		runMaster()
 	case db.Worker:
-		sv.updateWorker(minion.PrivateIP, etcdRow.LeaderIP,
-			etcdRow.EtcdIPs)
+		runWorker()
 	}
-
-	sv.etcdIPs = etcdRow.EtcdIPs
-	sv.leaderIP = etcdRow.LeaderIP
-	sv.IP = minion.PrivateIP
-	sv.leader = etcdRow.Leader
-	sv.provider = minion.Provider
-	sv.region = minion.Region
-	sv.size = minion.Size
 }
 
-func (sv *supervisor) updateWorker(IP string, leaderIP string, etcdIPs []string) {
-	if !reflect.DeepEqual(sv.etcdIPs, etcdIPs) {
-		sv.Remove(Etcd)
-	}
-
-	sv.run(Etcd, fmt.Sprintf("--initial-cluster=%s", initialClusterString(etcdIPs)),
-		"--heartbeat-interval="+etcdHeartbeatInterval,
-		"--election-timeout="+etcdElectionTimeout,
-		"--proxy=on")
-
-	sv.run(Ovsdb, "ovsdb-server")
-	sv.run(Ovsvswitchd, "ovs-vswitchd")
-
-	if leaderIP == "" || IP == "" {
-		return
-	}
-
-	gwMac := ipdef.IPToMac(ipdef.GatewayIP)
-	err := execRun("ovs-vsctl", "set", "Open_vSwitch", ".",
-		fmt.Sprintf("external_ids:ovn-remote=\"tcp:%s:6640\"", leaderIP),
-		fmt.Sprintf("external_ids:ovn-encap-ip=%s", IP),
-		fmt.Sprintf("external_ids:ovn-encap-type=\"%s\"", tunnelingProtocol),
-		fmt.Sprintf("external_ids:api_server=\"http://%s:9000\"", leaderIP),
-		fmt.Sprintf("external_ids:system-id=\"%s\"", IP),
-		"--", "add-br", "quilt-int",
-		"--", "set", "bridge", "quilt-int", "fail_mode=secure",
-		fmt.Sprintf("other_config:hwaddr=\"%s\"", gwMac))
-	if err != nil {
-		log.WithError(err).Warnf("Failed to exec in %s.", Ovsvswitchd)
-		return
-	}
-
-	ip := net.IPNet{IP: ipdef.GatewayIP, Mask: ipdef.QuiltSubnet.Mask}
-	if err := cfgGateway("quilt-int", ip); err != nil {
-		log.WithError(err).Error("Failed to configure quilt-int.")
-		return
-	}
-
-	/* The ovn controller doesn't support reconfiguring ovn-remote mid-run.
-	 * So, we need to restart the container when the leader changes. */
-	sv.Remove(Ovncontroller)
-	sv.run(Ovncontroller, "ovn-controller")
-
-	sv.SetInit()
-}
-
-func (sv *supervisor) updateMaster(IP string, etcdIPs []string, leader bool) {
-	if sv.IP != IP || !reflect.DeepEqual(sv.etcdIPs, etcdIPs) {
-		sv.Remove(Etcd)
-	}
-
-	if IP == "" || len(etcdIPs) == 0 {
-		return
-	}
-
-	sv.run(Registry)
-	sv.run(Etcd, fmt.Sprintf("--name=master-%s", IP),
-		fmt.Sprintf("--initial-cluster=%s", initialClusterString(etcdIPs)),
-		fmt.Sprintf("--advertise-client-urls=http://%s:2379", IP),
-		fmt.Sprintf("--listen-peer-urls=http://%s:2380", IP),
-		fmt.Sprintf("--initial-advertise-peer-urls=http://%s:2380", IP),
-		"--listen-client-urls=http://0.0.0.0:2379",
-		"--heartbeat-interval="+etcdHeartbeatInterval,
-		"--initial-cluster-state=new",
-		"--election-timeout="+etcdElectionTimeout)
-	sv.run(Ovsdb, "ovsdb-server")
-
-	if leader {
-		/* XXX: If we fail to boot ovn-northd, we should give up
-		* our leadership somehow.  This ties into the general
-		* problem of monitoring health. */
-		sv.run(Ovnnorthd, "ovn-northd")
-	} else {
-		sv.Remove(Ovnnorthd)
-	}
-
-	sv.SetInit()
-}
-
-func (sv *supervisor) run(name string, args ...string) {
-	isRunning, err := sv.dk.IsRunning(name)
+// run calls out to the Docker client to run the container specified by name.
+func run(name string, args ...string) {
+	isRunning, err := dk.IsRunning(name)
 	if err != nil {
 		log.WithError(err).Warnf("could not check running status of %s.", name)
 		return
@@ -234,22 +103,24 @@ func (sv *supervisor) run(name string, args ...string) {
 	}
 
 	log.Infof("Start Container: %s", name)
-	_, err = sv.dk.Run(ro)
+	_, err = dk.Run(ro)
 	if err != nil {
 		log.WithError(err).Warnf("Failed to run %s.", name)
 	}
 }
 
-func (sv *supervisor) Remove(name string) {
+// Remove removes the docker container specified by name.
+func Remove(name string) {
 	log.WithField("name", name).Info("Removing container")
-	err := sv.dk.Remove(name)
+	err := dk.Remove(name)
 	if err != nil && err != docker.ErrNoSuchContainer {
 		log.WithError(err).Warnf("Failed to remove %s.", name)
 	}
 }
 
-func (sv *supervisor) SetInit() {
-	sv.conn.Txn(db.MinionTable).Run(func(view db.Database) error {
+// SetInit signals to other processes that the supervisor has finshed setup.
+func SetInit() {
+	conn.Txn(db.MinionTable).Run(func(view db.Database) error {
 		self, err := view.MinionSelf()
 		if err == nil {
 			self.SupervisorInit = true
@@ -277,24 +148,6 @@ var execRun = func(name string, arg ...string) error {
 	return exec.Command(name, arg...).Run()
 }
 
-func cfgGatewayImpl(name string, ip net.IPNet) error {
-	link, err := linkByName(name)
-	if err != nil {
-		return fmt.Errorf("no such interface: %s (%s)", name, err)
-	}
-
-	if err := linkSetUp(link); err != nil {
-		return fmt.Errorf("failed to bring up link: %s (%s)", name, err)
-	}
-
-	if err := addrAdd(link, &netlink.Addr{IPNet: &ip}); err != nil {
-		return fmt.Errorf("failed to set address: %s (%s)", name, err)
-	}
-
-	return nil
-}
-
-var cfgGateway = cfgGatewayImpl
 var linkByName = netlink.LinkByName
 var linkSetUp = netlink.LinkSetUp
 var addrAdd = netlink.AddrAdd

@@ -49,8 +49,9 @@ func Run(role db.Role) {
 	// Not in a goroutine, want the plugin to start before the scheduler
 	plugin.Run()
 
+	supervisor.Run(conn, dk, role)
+
 	go minionServerRun(conn)
-	go supervisor.Run(conn, dk, role)
 	go scheduler.Run(conn, dk)
 	go network.Run(conn)
 	go registry.Run(conn, dk)
