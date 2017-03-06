@@ -118,18 +118,6 @@ func Remove(name string) {
 	}
 }
 
-// SetInit signals to other processes that the supervisor has finshed setup.
-func SetInit() {
-	conn.Txn(db.MinionTable).Run(func(view db.Database) error {
-		self, err := view.MinionSelf()
-		if err == nil {
-			self.SupervisorInit = true
-			view.Commit(self)
-		}
-		return err
-	})
-}
-
 func initialClusterString(etcdIPs []string) string {
 	var initialCluster []string
 	for _, ip := range etcdIPs {

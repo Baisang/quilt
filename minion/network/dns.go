@@ -117,10 +117,6 @@ func serveDNSOnce(conn db.Conn) {
 		return
 	}
 
-	if !self.SupervisorInit {
-		return
-	}
-
 	table = updateTable(table, conn.SelectFromHostname(nil))
 }
 

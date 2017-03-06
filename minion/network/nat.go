@@ -26,7 +26,7 @@ func runNat(conn db.Conn) {
 	tables := []db.TableType{db.ContainerTable, db.ConnectionTable, db.MinionTable}
 	for range conn.TriggerTick(30, tables...).C {
 		minion, err := conn.MinionSelf()
-		if err != nil || !minion.SupervisorInit || minion.Role != db.Worker {
+		if err != nil || minion.Role != db.Worker {
 			continue
 		}
 

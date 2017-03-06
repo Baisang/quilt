@@ -36,14 +36,11 @@ func Run(conn db.Conn) {
 // and label.  The specialized OpenFlow rules Quilt requires are managed by the workers
 // individuallly.
 func runMaster(conn db.Conn) {
-	var init bool
 	var labels []db.Label
 	var containers []db.Container
 	var connections []db.Connection
 	conn.Txn(db.ConnectionTable, db.ContainerTable, db.EtcdTable,
 		db.LabelTable, db.MinionTable).Run(func(view db.Database) error {
-
-		init = checkSupervisorInit(view)
 
 		labels = view.SelectFromLabel(func(label db.Label) bool {
 			return label.IP != ""
@@ -56,10 +53,6 @@ func runMaster(conn db.Conn) {
 		connections = view.SelectFromConnection(nil)
 		return nil
 	})
-
-	if !init {
-		return
-	}
 
 	ovsdbClient, err := ovsdb.Open()
 	if err != nil {
@@ -108,9 +101,4 @@ func runMaster(conn db.Conn) {
 	}
 
 	updateACLs(ovsdbClient, connections, labels)
-}
-
-func checkSupervisorInit(view db.Database) bool {
-	self, err := view.MinionSelf()
-	return err == nil && self.SupervisorInit
 }

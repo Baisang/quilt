@@ -15,7 +15,6 @@ import (
 
 func runWorker() {
 	setupWorker()
-	SetInit()
 	go runWorkerSystem()
 }
 

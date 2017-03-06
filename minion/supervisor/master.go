@@ -9,7 +9,6 @@ import (
 
 func runMaster() {
 	run(Ovsdb, "ovsdb-server")
-	SetInit()
 	go runMasterSystem()
 }
 

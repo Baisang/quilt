@@ -36,7 +36,6 @@ func TestRunMaster(t *testing.T) {
 		view.Commit(etcd)
 
 		minion := view.InsertMinion()
-		minion.SupervisorInit = true
 		minion.Self = true
 		view.Commit(minion)
 
