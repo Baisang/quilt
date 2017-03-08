@@ -18,11 +18,6 @@ func TestWriteMinion(t *testing.T) {
 	conn := db.New()
 	store := NewMock()
 
-	writeMinion(conn, store)
-	val, err := store.Get(key)
-	assert.NotNil(t, err)
-	assert.Empty(t, val)
-
 	// Minion without a PrivateIP
 	conn.Txn(db.AllTables...).Run(func(view db.Database) error {
 		m := view.InsertMinion()
@@ -36,12 +31,12 @@ func TestWriteMinion(t *testing.T) {
 	})
 
 	writeMinion(conn, store)
-	val, err = store.Get(key)
+	val, err := store.Get(key)
 	assert.NotNil(t, err)
 	assert.Empty(t, val)
 
 	conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		m, _ := view.MinionSelf()
+		m := view.MinionSelf()
 		m.PrivateIP = ip
 		view.Commit(m)
 		return nil

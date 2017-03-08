@@ -108,8 +108,7 @@ func TestRunContainerOnce(t *testing.T) {
 	assert.Equal(t, expDBC, dbcs[0])
 
 	conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		self, err := view.MinionSelf()
-		assert.NoError(t, err)
+		self := view.MinionSelf()
 		self.Role = db.Worker
 		self.PrivateIP = "1.2.3.4"
 		view.Commit(self)
@@ -125,8 +124,7 @@ func TestRunContainerOnce(t *testing.T) {
 	assert.Equal(t, expDBC, dbcs[0])
 
 	conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		self, err := view.MinionSelf()
-		assert.NoError(t, err)
+		self := view.MinionSelf()
 		self.PrivateIP = "1.2.3.5"
 		view.Commit(self)
 		return nil

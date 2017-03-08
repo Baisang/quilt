@@ -109,8 +109,8 @@ func diffMinion(dbMinions, storeMinions []db.Minion) (del, add []db.Minion) {
 }
 
 func writeMinion(conn db.Conn, store Store) {
-	minion, err := conn.MinionSelf()
-	if err != nil || minion.PrivateIP == "" {
+	minion := conn.MinionSelf()
+	if minion.PrivateIP == "" {
 		return
 	}
 

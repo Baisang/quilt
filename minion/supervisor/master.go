@@ -22,10 +22,7 @@ func runMasterSystem() {
 }
 
 func runMasterOnce() {
-	minion, err := conn.MinionSelf()
-	if err != nil {
-		return
-	}
+	minion := conn.MinionSelf()
 
 	var etcdRow db.Etcd
 	if etcdRows := conn.SelectFromEtcd(nil); len(etcdRows) == 1 {

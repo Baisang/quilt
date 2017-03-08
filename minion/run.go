@@ -35,11 +35,7 @@ func Run(role db.Role) {
 	// Possibly in the future just pass down role into all of the modules,
 	// but may be simpler to just have it use this entry.
 	conn.Txn(db.MinionTable).Run(func(view db.Database) error {
-		minion, err := view.MinionSelf()
-		if err != nil {
-			log.Info("Using role from cloudcfg.")
-			minion = view.InsertMinion()
-		}
+		minion := view.InsertMinion()
 		minion.Role = role
 		minion.Self = true
 		view.Commit(minion)
@@ -67,8 +63,8 @@ func Run(role db.Role) {
 		txn := conn.Txn(db.ConnectionTable, db.ContainerTable, db.MinionTable,
 			db.EtcdTable, db.PlacementTable, db.ImageTable)
 		txn.Run(func(view db.Database) error {
-			minion, err := view.MinionSelf()
-			if err == nil && view.EtcdLeader() {
+			minion := view.MinionSelf()
+			if view.EtcdLeader() {
 				updatePolicy(view, minion.Spec)
 			}
 			return nil

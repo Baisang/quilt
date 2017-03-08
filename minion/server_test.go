@@ -15,6 +15,14 @@ func TestSetMinionConfig(t *testing.T) {
 	t.Parallel()
 	s := server{db.New()}
 
+	s.Conn.Txn(db.AllTables...).Run(func(view db.Database) error {
+		m := view.InsertMinion()
+		m.Self = true
+		m.Role = db.Master
+		view.Commit(m)
+		return nil
+	})
+
 	cfg := pb.MinionConfig{
 		PrivateIP:      "priv",
 		Spec:           "spec",
@@ -29,6 +37,7 @@ func TestSetMinionConfig(t *testing.T) {
 		Spec:           "spec",
 		PrivateIP:      "priv",
 		Provider:       "provider",
+		Role:           db.Master,
 		Size:           "size",
 		Region:         "region",
 		AuthorizedKeys: "key1\nkey2",
@@ -56,7 +65,7 @@ func checkMinionEquals(t *testing.T, conn db.Conn, exp db.Minion) {
 	timeout := time.After(1 * time.Second)
 	var actual db.Minion
 	for {
-		actual, _ = conn.MinionSelf()
+		actual = conn.MinionSelf()
 		actual.ID = 0
 		if reflect.DeepEqual(exp, actual) {
 			return
@@ -97,10 +106,19 @@ func TestGetMinionConfig(t *testing.T) {
 	t.Parallel()
 	s := server{db.New()}
 
-	// Should set Role to None if no config.
-	cfg, err := s.GetMinionConfig(nil, &pb.Request{})
-	assert.NoError(t, err)
-	assert.Equal(t, pb.MinionConfig{Role: pb.MinionConfig_NONE}, *cfg)
+	s.Conn.Txn(db.AllTables...).Run(func(view db.Database) error {
+		m := view.InsertMinion()
+		m.Self = true
+		m.Spec = "selfspec"
+		m.Role = db.Master
+		m.PrivateIP = "selfpriv"
+		m.Provider = "selfprovider"
+		m.Size = "selfsize"
+		m.Region = "selfregion"
+		m.AuthorizedKeys = "key1\nkey2"
+		view.Commit(m)
+		return nil
+	})
 
 	// Should only return config for "self".
 	s.Conn.Txn(db.AllTables...).Run(func(view db.Database) error {
@@ -116,16 +134,20 @@ func TestGetMinionConfig(t *testing.T) {
 		view.Commit(m)
 		return nil
 	})
-	cfg, err = s.GetMinionConfig(nil, &pb.Request{})
+	cfg, err := s.GetMinionConfig(nil, &pb.Request{})
 	assert.NoError(t, err)
-	assert.Equal(t, pb.MinionConfig{Role: pb.MinionConfig_NONE}, *cfg)
+	assert.Equal(t, pb.MinionConfig{
+		Role:           pb.MinionConfig_MASTER,
+		PrivateIP:      "selfpriv",
+		Spec:           "selfspec",
+		Provider:       "selfprovider",
+		Size:           "selfsize",
+		Region:         "selfregion",
+		AuthorizedKeys: []string{"key1", "key2"},
+	}, *cfg)
 
 	// Test returning a full config.
 	s.Conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		m := view.SelectFromMinion(nil)[0]
-		m.Self = true
-		view.Commit(m)
-
 		etcd := view.InsertEtcd()
 		etcd.EtcdIPs = []string{"etcd1", "etcd2"}
 		view.Commit(etcd)
@@ -135,11 +157,11 @@ func TestGetMinionConfig(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, pb.MinionConfig{
 		Role:           pb.MinionConfig_MASTER,
-		PrivateIP:      "priv",
-		Spec:           "spec",
-		Provider:       "provider",
-		Size:           "size",
-		Region:         "region",
+		PrivateIP:      "selfpriv",
+		Spec:           "selfspec",
+		Provider:       "selfprovider",
+		Size:           "selfsize",
+		Region:         "selfregion",
 		EtcdMembers:    []string{"etcd1", "etcd2"},
 		AuthorizedKeys: []string{"key1", "key2"},
 	}, *cfg)

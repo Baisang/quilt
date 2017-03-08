@@ -98,11 +98,7 @@ func joinHostnames(view db.Database) error {
 }
 
 func serveDNSOnce(conn db.Conn) {
-	self, err := conn.MinionSelf()
-	if err != nil {
-		log.WithError(err).Debug("Failed to get self")
-		return
-	}
+	self := conn.MinionSelf()
 
 	if self.Role != db.Worker {
 		if table == nil {

@@ -52,10 +52,7 @@ func runWorkerSystem() {
 }
 
 func runWorkerOnce() {
-	minion, err := conn.MinionSelf()
-	if err != nil {
-		return
-	}
+	minion := conn.MinionSelf()
 
 	var etcdRow db.Etcd
 	if etcdRows := conn.SelectFromEtcd(nil); len(etcdRows) == 1 {
@@ -85,7 +82,7 @@ func runWorkerOnce() {
 		return
 	}
 
-	err = execRun("ovs-vsctl", "set", "Open_vSwitch", ".",
+	err := execRun("ovs-vsctl", "set", "Open_vSwitch", ".",
 		fmt.Sprintf("external_ids:ovn-remote=\"tcp:%s:6640\"", leaderIP),
 		fmt.Sprintf("external_ids:ovn-encap-ip=%s", IP),
 		fmt.Sprintf("external_ids:ovn-encap-type=\"%s\"", tunnelingProtocol),

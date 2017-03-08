@@ -56,8 +56,8 @@ func campaign(conn db.Conn, store Store) {
 
 		etcdRows := conn.SelectFromEtcd(nil)
 
-		minion, err := conn.MinionSelf()
-		master := err == nil && minion.Role == db.Master && len(etcdRows) == 1
+		minion := conn.MinionSelf()
+		master := minion.Role == db.Master && len(etcdRows) == 1
 
 		if !master {
 			continue
@@ -70,6 +70,7 @@ func campaign(conn db.Conn, store Store) {
 
 		ttl := electionTTL * time.Second
 
+		var err error
 		if etcdRows[0].Leader {
 			err = store.Refresh(leaderKey, IP, ttl)
 		} else {

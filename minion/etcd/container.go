@@ -39,10 +39,7 @@ func runContainerOnce(conn db.Conn, store Store) error {
 }
 
 func updateLeader(conn db.Conn, store Store, etcdStr string) error {
-	self, err := conn.MinionSelf()
-	if err != nil {
-		return err
-	}
+	self := conn.MinionSelf()
 	myIP := self.PrivateIP
 
 	dbcs := conn.SelectFromContainer(func(dbc db.Container) bool {
@@ -55,7 +52,7 @@ func updateLeader(conn db.Conn, store Store, etcdStr string) error {
 		dbcs[i].Image = myIP + ":5000/" + dbcs[i].Image
 	}
 
-	err = writeEtcdSlice(store, containerPath, etcdStr, db.ContainerSlice(dbcs))
+	err := writeEtcdSlice(store, containerPath, etcdStr, db.ContainerSlice(dbcs))
 	if err != nil {
 		return fmt.Errorf("etcd write error: %s", err)
 	}
@@ -64,10 +61,7 @@ func updateLeader(conn db.Conn, store Store, etcdStr string) error {
 }
 
 func updateNonLeader(conn db.Conn, etcdStr string) {
-	self, err := conn.MinionSelf()
-	if err != nil {
-		return
-	}
+	self := conn.MinionSelf()
 
 	var rawEtcdDBCs, etcdDBCs []db.Container
 	json.Unmarshal([]byte(etcdStr), &rawEtcdDBCs)

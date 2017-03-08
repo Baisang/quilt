@@ -29,11 +29,7 @@ func Run(conn db.Conn, dk docker.Client) {
 		db.PlacementTable, db.EtcdTable).C
 	for range trig {
 		loopLog.LogStart()
-		minion, err := conn.MinionSelf()
-		if err != nil {
-			log.WithError(err).Warn("Missing self in the minion table.")
-			continue
-		}
+		minion := conn.MinionSelf()
 
 		if minion.Role == db.Worker {
 			runWorker(conn, dk, minion.PrivateIP)

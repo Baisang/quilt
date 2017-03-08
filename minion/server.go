@@ -44,17 +44,14 @@ func (s server) GetMinionConfig(cts context.Context,
 
 	var cfg pb.MinionConfig
 
-	if m, err := s.MinionSelf(); err == nil {
-		cfg.Role = db.RoleToPB(m.Role)
-		cfg.PrivateIP = m.PrivateIP
-		cfg.Spec = m.Spec
-		cfg.Provider = m.Provider
-		cfg.Size = m.Size
-		cfg.Region = m.Region
-		cfg.AuthorizedKeys = strings.Split(m.AuthorizedKeys, "\n")
-	} else {
-		cfg.Role = db.RoleToPB(db.None)
-	}
+	m := s.MinionSelf()
+	cfg.Role = db.RoleToPB(m.Role)
+	cfg.PrivateIP = m.PrivateIP
+	cfg.Spec = m.Spec
+	cfg.Provider = m.Provider
+	cfg.Size = m.Size
+	cfg.Region = m.Region
+	cfg.AuthorizedKeys = strings.Split(m.AuthorizedKeys, "\n")
 
 	s.Txn(db.EtcdTable).Run(func(view db.Database) error {
 		if etcdRow, err := view.GetEtcd(); err == nil {
@@ -71,12 +68,7 @@ func (s server) SetMinionConfig(ctx context.Context,
 	go s.Txn(db.EtcdTable,
 		db.MinionTable).Run(func(view db.Database) error {
 
-		minion, err := view.MinionSelf()
-		if err != nil {
-			log.WithError(err).Error("Role not obtained from cloudcfg.")
-			minion = view.InsertMinion()
-		}
-
+		minion := view.MinionSelf()
 		minion.PrivateIP = msg.PrivateIP
 		minion.Spec = msg.Spec
 		minion.Provider = msg.Provider

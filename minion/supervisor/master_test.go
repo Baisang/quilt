@@ -20,7 +20,7 @@ func TestNone(t *testing.T) {
 	}
 
 	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		m, _ := view.MinionSelf()
+		m := view.MinionSelf()
 		e := view.SelectFromEtcd(nil)[0]
 		m.PrivateIP = "1.2.3.4"
 		e.Leader = false
@@ -45,7 +45,7 @@ func TestMaster(t *testing.T) {
 	ip := "1.2.3.4"
 	etcdIPs := []string{""}
 	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		m, _ := view.MinionSelf()
+		m := view.MinionSelf()
 		e := view.SelectFromEtcd(nil)[0]
 		m.Role = db.Master
 		m.PrivateIP = ip
@@ -73,7 +73,7 @@ func TestMaster(t *testing.T) {
 	ip = "8.8.8.8"
 	etcdIPs = []string{"8.8.8.8"}
 	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		m, _ := view.MinionSelf()
+		m := view.MinionSelf()
 		e := view.SelectFromEtcd(nil)[0]
 		m.Role = db.Master
 		m.PrivateIP = ip
@@ -125,7 +125,7 @@ func TestEtcdAdd(t *testing.T) {
 	ip := "1.2.3.4"
 	etcdIPs := []string{ip, "5.6.7.8"}
 	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		m, _ := view.MinionSelf()
+		m := view.MinionSelf()
 		e := view.SelectFromEtcd(nil)[0]
 		m.Role = db.Master
 		m.PrivateIP = ip
@@ -148,7 +148,7 @@ func TestEtcdAdd(t *testing.T) {
 	// Add a new master
 	etcdIPs = append(etcdIPs, "9.10.11.12")
 	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		m, _ := view.MinionSelf()
+		m := view.MinionSelf()
 		e := view.SelectFromEtcd(nil)[0]
 		m.Role = db.Master
 		e.EtcdIPs = etcdIPs
@@ -173,7 +173,7 @@ func TestEtcdRemove(t *testing.T) {
 	ip := "1.2.3.4"
 	etcdIPs := []string{ip, "5.6.7.8"}
 	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		m, _ := view.MinionSelf()
+		m := view.MinionSelf()
 		e := view.SelectFromEtcd(nil)[0]
 		m.Role = db.Master
 		m.PrivateIP = ip
@@ -196,7 +196,7 @@ func TestEtcdRemove(t *testing.T) {
 	// Remove a master
 	etcdIPs = etcdIPs[1:]
 	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		m, _ := view.MinionSelf()
+		m := view.MinionSelf()
 		e := view.SelectFromEtcd(nil)[0]
 		m.Role = db.Master
 		e.EtcdIPs = etcdIPs

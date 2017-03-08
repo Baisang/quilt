@@ -25,8 +25,8 @@ type IPTables interface {
 func runNat(conn db.Conn) {
 	tables := []db.TableType{db.ContainerTable, db.ConnectionTable, db.MinionTable}
 	for range conn.TriggerTick(30, tables...).C {
-		minion, err := conn.MinionSelf()
-		if err != nil || minion.Role != db.Worker {
+		minion := conn.MinionSelf()
+		if minion.Role != db.Worker {
 			continue
 		}
 

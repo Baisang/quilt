@@ -36,8 +36,8 @@ func Run(conn db.Conn, dk docker.Client) {
 }
 
 func runOnce(conn db.Conn, dk docker.Client) {
-	self, err := conn.MinionSelf()
-	if err != nil || self.Role != db.Master {
+	self := conn.MinionSelf()
+	if self.Role != db.Master {
 		return
 	}
 

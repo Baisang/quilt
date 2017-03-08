@@ -65,8 +65,9 @@ func TestSyncKeysError(t *testing.T) {
 	util.AppFs = afero.NewMemMapFs()
 
 	conn := db.New()
-	err := runOnce(conn)
-	assert.EqualError(t, err, "no self minion")
+	assert.Panics(t, func() {
+		runOnce(conn)
+	}, "running without MinionSelf should panic")
 
 	fs := afero.NewMemMapFs()
 	util.AppFs = afero.NewReadOnlyFs(fs)
@@ -77,7 +78,7 @@ func TestSyncKeysError(t *testing.T) {
 		view.Commit(m)
 		return nil
 	})
-	err = runOnce(conn)
+	err := runOnce(conn)
 	assert.EqualError(t, err, "open /home/quilt/.ssh/authorized_keys: "+
 		"file does not exist")
 

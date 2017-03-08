@@ -19,7 +19,7 @@ func TestWorker(t *testing.T) {
 	ip := "1.2.3.4"
 	etcdIPs := []string{ip}
 	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		m, _ := view.MinionSelf()
+		m := view.MinionSelf()
 		e := view.SelectFromEtcd(nil)[0]
 		m.Role = db.Worker
 		m.PrivateIP = ip
@@ -45,7 +45,7 @@ func TestWorker(t *testing.T) {
 
 	leaderIP := "5.6.7.8"
 	ctx.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
-		m, _ := view.MinionSelf()
+		m := view.MinionSelf()
 		e := view.SelectFromEtcd(nil)[0]
 		m.Role = db.Worker
 		m.PrivateIP = ip
