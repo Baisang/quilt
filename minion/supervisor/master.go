@@ -9,6 +9,7 @@ import (
 
 func runMaster() {
 	run(Ovsdb, "ovsdb-server")
+	run(Registry)
 	go runMasterSystem()
 }
 
@@ -53,7 +54,9 @@ func runMasterOnce() {
 		"--heartbeat-interval="+etcdHeartbeatInterval,
 		"--initial-cluster-state=new",
 		"--election-timeout="+etcdElectionTimeout)
+
 	run(Ovsdb, "ovsdb-server")
+	run(Registry)
 
 	if leader {
 		/* XXX: If we fail to boot ovn-northd, we should give up
