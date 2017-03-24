@@ -145,6 +145,8 @@ func (sCmd SSH) Run() int {
 		if exitErr, ok := err.(exitError); ok {
 			log.WithError(err).Debug(
 				"SSH command returned a nonzero exit code")
+			fmt.Println("Do you need to allocate a pseudo-TTY? " +
+				"Use quilt ssh -t")
 			return exitErr.ExitStatus()
 		}
 
