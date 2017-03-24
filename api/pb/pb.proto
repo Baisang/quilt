@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+service API {
+	rpc Query(DBQuery) returns(QueryReply) {}
+	rpc Deploy(DeployRequest) returns(DeployReply) {}
+}
+
+message DBQuery {
+    string Table = 1;
+}
+
+message QueryReply {
+    string TableContents = 1;
+}
+
+message DeployRequest {
+	string Deployment = 1;
+}
+
+message DeployReply {
+}

@@ -1,0 +1,135 @@
+#!/bin/bash
+
+# This script sets up a machine to act as a Quilt continuous integration host.
+# It's only been tested with Ubuntu 15.04 Specifically, it downloads the
+# quilt-tester code, configures apache, and sets up the hourly cron job
+
+TEST_USER="quilt-tester"
+TESTER_HOME="/home/$TEST_USER"
+
+function setup_conf() {
+    SLACK_GUESS="#quilt-testing"
+    CONTAINER_GUESS="quilt/tester"
+
+    # Assume we're on aws, and fallback to vagrant if query times out
+    IP_GUESS="$(curl --connect-timeout 10 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null)"
+    if [ $? -ne 0 ] ; then
+        IP_GUESS=$(ip address show eth1 | grep 'inet ' | tr -s ' ' | cut -d' ' -f3 | cut -d'/' -f1)
+    fi
+
+    echo -n "Enter this machine's IP address: [$IP_GUESS] "
+    read ip
+
+    echo -n "Enter the slack channel to post to: [$SLACK_GUESS] "
+    read slack_channel
+
+    echo -n "Enter the Quilt container to test: [$CONTAINER_GUESS] "
+    read container
+
+    if [ -z $ip ] ; then
+        ip=$IP_GUESS
+    fi
+
+    if [ -z $slack_channel ] ; then
+        slack_channel=$SLACK_GUESS
+    fi
+
+    if [ -z $container ] ; then
+        container=$CONTAINER_GUESS
+    fi
+
+    #XXX: Allow the user to review settings, and reconfigure if they want to
+}
+
+if [[ $EUID -ne 0 ]]; then
+   echo "Please run as root. Exiting." 1>&2
+   exit 1
+fi
+
+echo "Beginning setup. Please wait a minute or so, and then we will ask you some questions."
+
+echo "Creating new user: $TEST_USER.."
+sudo groupadd $TEST_USER
+sudo useradd $TEST_USER -g $TEST_USER
+sudo usermod -aG www-data $TEST_USER
+sudo install -d $TESTER_HOME -g $TEST_USER -o $TEST_USER -m 755
+
+echo "=== Begin user input section ==="
+setup_conf
+
+echo "Setting up cron jobs.."
+my_crontab="0 * * * *	wget http://127.0.0.1/cgi-bin/trigger_run"
+echo "$my_crontab" | sudo -u $TEST_USER crontab
+
+echo "=== End user input section. You can leave now :) ==="
+echo
+
+echo "Installing dependencies.. (This takes a couple minutes)"
+sudo apt-get update
+sudo apt-get install -y apache2 docker.io > /dev/null
+sudo usermod -aG docker $TEST_USER
+
+echo "Configuring apache.."
+sudo install -d /var/www/quilt-tester -g www-data -o $TEST_USER -m 775
+
+sudo cat << EOF > /usr/lib/cgi-bin/trigger_run
+#!/bin/bash
+set -e
+echo "Content-type: text/plain"
+echo ""
+
+if docker inspect tester > /dev/null ; then
+        docker rm tester 2>&1
+fi
+docker pull $container
+docker run -d -v $TESTER_HOME/.aws:/root/.aws -v /var/www:/var/www -v /etc/localtime:/etc/localtime:ro \
+-e MY_IP=$ip -e SLACK_CHANNEL="$slack_channel" --name=tester --net=host $container --preserve-failed
+
+echo "Logs at: http://$ip/latest/log"
+exit 0
+EOF
+
+chmod +x /usr/lib/cgi-bin/*
+sudo a2enmod cgi &> /dev/null
+
+sudo cat << EOF > /etc/apache2/sites-enabled/000-default.conf
+<VirtualHost *:80>
+	ServerAdmin webmaster@localhost
+	DocumentRoot /var/www/quilt-tester
+	ErrorLog \${APACHE_LOG_DIR}/error.log
+	CustomLog \${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>
+EOF
+
+sudo cat << EOF > /etc/apache2/envvars
+unset HOME
+
+if [ "\${APACHE_CONFDIR##/etc/apache2-}" != "\${APACHE_CONFDIR}" ] ; then
+	SUFFIX="-\${APACHE_CONFDIR##/etc/apache2-}"
+else
+	SUFFIX=
+fi
+
+export APACHE_RUN_USER=quilt-tester
+export APACHE_RUN_GROUP=www-data
+export APACHE_PID_FILE=/var/run/apache2/apache2\$SUFFIX.pid
+export APACHE_RUN_DIR=/var/run/apache2\$SUFFIX
+export APACHE_LOCK_DIR=/var/lock/apache2\$SUFFIX
+export APACHE_LOG_DIR=/var/log/apache2\$SUFFIX
+export LANG=C
+export LANG
+EOF
+
+sudo service apache2 restart &> /dev/null
+
+# Try to setup aws keys
+echo "Trying to copy your aws credentials.."
+sudo cp -r ~/.aws $TESTER_HOME/.aws && sudo chown -R $TEST_USER:$TEST_USER $TESTER_HOME/.aws
+
+if [ $? -ne 0 ] ; then
+    echo -e "\e[31mRemember to put the aws credentials in $TESTER_HOME/.aws\e[0m"
+else
+    echo -e "\e[32mSuccessfully copied aws credentials.\e[0m"
+fi
+
+echo "Done."

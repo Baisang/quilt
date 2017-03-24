@@ -1,0 +1,29 @@
+language: go
+
+sudo: required
+
+services:
+      - docker
+
+go:
+- 1.7
+
+install:
+    - make get-build-tools
+
+script:
+    - govendor test -i +local
+    - make -j 2 lint format-check coverage check-specs docker-build-quilt
+
+after_success:
+    - bash <(curl -s https://codecov.io/bash)
+    - if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
+          make docker-build-tester;
+          docker login -e="$DOCKER_EMAIL" -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD";
+          docker push quilt/quilt;
+          docker push quilt/tester;
+      fi
+
+notifications:
+  slack:
+    secure: jap4ODSrC9Nrd61tU3vSB9z8GBUUQmVcQzHWzIUHtQ2orGE8NqlrgdL17Bang26mm083vjFuaHb82OeJXeeMnH+8WFBY8ju19KJI/4Lgnou+Q0eOZ6bmHY9fjIgLTm+HiOrMaeDiDtLUPQIm1O4aNQ1GjT410LeQ0QkFZSPRJN+kxYDvLW8GQi3kG12BvIWPWFJY/r5B6JvSWQPzsJXvFTFAfu5B9enhwzy/s7W9tT+ddpnuCyz2+O2ADpGfLwtyH50jLlmIyrq3QKT6vYy2COq5GZ3yM2noaQRYRbl/5LIPdsAh99wjJF4X9oNXCl4EmxK7sWPKZc7Yk/AIGVHhlOlkkYhYzbajw3OPLo/02RDJv4IPCpFKfePOYLNpvcH4F+ae4ZQ1NmU0ksH9q04fTUH6xtwRU74WIiaelWMoH4qegUR4GJHbIEbCcT1HwN36ZkAeIFtY8HHT9+3wag1nnWG3l3uRIudcvjYFp7flGhaqW/t+VFbxaKRbahRPHV9K71XajdxR2GoQOggaE6k7/TeGBkHDR/3zX0sA30+meHxrb8Zo3py+Lsb8CQ5ULE/TWyGQyLN8RN/ynj+qtvI6nVIgKzkD+pgluerEIu5KhA0WslHY1Z0cQgI8mmoU4SY5Tzim/kwyljmBVFAIafyDibc5OjVSRpGca1vtBc18ZrY=
