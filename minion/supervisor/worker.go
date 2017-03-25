@@ -13,6 +13,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
+var oldLeaderIP string
+
 func runWorker() {
 	setupWorker()
 	go runWorkerSystem()
@@ -68,7 +70,6 @@ func runWorkerOnce() {
 	}
 
 	oldEtcdIPs = etcdIPs
-	oldIP = IP
 
 	run(Etcd, fmt.Sprintf("--initial-cluster=%s", initialClusterString(etcdIPs)),
 		"--heartbeat-interval="+etcdHeartbeatInterval,
@@ -78,9 +79,12 @@ func runWorkerOnce() {
 	run(Ovsdb, "ovsdb-server")
 	run(Ovsvswitchd, "ovs-vswitchd")
 
-	if leaderIP == "" || IP == "" {
+	if leaderIP == "" || IP == "" || (oldIP == IP && oldLeaderIP == leaderIP) {
 		return
 	}
+
+	oldIP = IP
+	oldLeaderIP = leaderIP
 
 	err := execRun("ovs-vsctl", "set", "Open_vSwitch", ".",
 		fmt.Sprintf("external_ids:ovn-remote=\"tcp:%s:6640\"", leaderIP),
