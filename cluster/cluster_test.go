@@ -9,6 +9,7 @@ import (
 	"github.com/quilt/quilt/cluster/acl"
 	"github.com/quilt/quilt/cluster/machine"
 	"github.com/quilt/quilt/db"
+	"github.com/quilt/quilt/join"
 	"github.com/quilt/quilt/stitch"
 	"github.com/stretchr/testify/assert"
 )
@@ -153,12 +154,14 @@ func TestPanicBadProvider(t *testing.T) {
 
 func TestSyncDB(t *testing.T) {
 	checkSyncDB := func(cloudMachines []machine.Machine,
-		databaseMachines []db.Machine, expected syncDBResult) {
+		databaseMachines []db.Machine, expected syncDBResult) syncDBResult {
 		dbRes := syncDB(cloudMachines, databaseMachines)
 
 		assert.Equal(t, expected.boot, dbRes.boot, "boot")
 		assert.Equal(t, expected.stop, dbRes.stop, "stop")
 		assert.Equal(t, expected.updateIPs, dbRes.updateIPs, "updateIPs")
+
+		return dbRes
 	}
 
 	var noMachines []machine.Machine
@@ -173,10 +176,10 @@ func TestSyncDB(t *testing.T) {
 	dbWorker := db.Machine{Provider: FakeAmazon, Role: db.Worker}
 	cmWorker := machine.Machine{Provider: FakeAmazon, Role: db.Worker}
 
-	cmNoIP := machine.Machine{Provider: FakeAmazon}
-	cmWithIP := machine.Machine{Provider: FakeAmazon, FloatingIP: "ip"}
-	dbNoIP := db.Machine{Provider: FakeAmazon}
-	dbWithIP := db.Machine{Provider: FakeAmazon, FloatingIP: "ip"}
+	cmNoIP := machine.Machine{Provider: FakeAmazon, ID: "id"}
+	cmWithIP := machine.Machine{Provider: FakeAmazon, ID: "id", FloatingIP: "ip"}
+	dbNoIP := db.Machine{Provider: FakeAmazon, CloudID: "id"}
+	dbWithIP := db.Machine{Provider: FakeAmazon, CloudID: "id", FloatingIP: "ip"}
 
 	// Test boot with no size
 	checkSyncDB(noMachines, []db.Machine{dbNoSize, dbNoSize}, syncDBResult{
@@ -221,7 +224,7 @@ func TestSyncDB(t *testing.T) {
 	})
 
 	// Test replace Floating IP
-	cNewIP := machine.Machine{Provider: FakeAmazon, FloatingIP: "ip^"}
+	cNewIP := machine.Machine{Provider: FakeAmazon, ID: "id", FloatingIP: "ip^"}
 	checkSyncDB([]machine.Machine{cNewIP}, []db.Machine{dbWithIP}, syncDBResult{
 		updateIPs: []machine.Machine{cmWithIP},
 	})
@@ -261,6 +264,120 @@ func TestSyncDB(t *testing.T) {
 	checkSyncDB([]machine.Machine{cmMaster, cmWorker},
 		[]db.Machine{dbMaster, dbWorker},
 		syncDBResult{})
+
+	// Test shuffling roles before CloudID is assigned
+	dbw1 := db.Machine{Provider: FakeAmazon, Role: db.Worker, PublicIP: "w1"}
+	dbw2 := db.Machine{Provider: FakeAmazon, Role: db.Worker, PublicIP: "w2"}
+	dbw3 := db.Machine{Provider: FakeAmazon, Role: db.Worker, PublicIP: "w3"}
+
+	mw1 := machine.Machine{Provider: FakeAmazon, Role: db.Worker,
+		ID: "mw1", PublicIP: "w1"}
+	mw2 := machine.Machine{Provider: FakeAmazon, Role: db.Worker,
+		ID: "mw2", PublicIP: "w2"}
+	mw3 := machine.Machine{Provider: FakeAmazon, Role: db.Worker,
+		ID: "mw3", PublicIP: "w3"}
+
+	pair1 := join.Pair{L: dbw1, R: mw1}
+	pair2 := join.Pair{L: dbw2, R: mw2}
+	pair3 := join.Pair{L: dbw3, R: mw3}
+
+	exp := []join.Pair{
+		pair1,
+		pair2,
+		pair3,
+	}
+
+	pairs := checkSyncDB([]machine.Machine{mw1, mw2, mw3},
+		[]db.Machine{dbw1, dbw2, dbw3},
+		syncDBResult{})
+
+	assert.Equal(t, exp, pairs.pairs)
+
+	// Test FloatingIP without role
+	dbf1 := db.Machine{Provider: FakeAmazon, Role: db.Master, PublicIP: "master"}
+	dbf2 := db.Machine{Provider: FakeAmazon, Role: db.Worker, PublicIP: "worker",
+		FloatingIP: "float"}
+
+	cmf1 := machine.Machine{Provider: FakeAmazon, PublicIP: "worker", ID: "worker"}
+	cmf2 := machine.Machine{Provider: FakeAmazon, PublicIP: "master", ID: "master"}
+
+	// No roles, CloudIDs not assigned, so nothing should happen
+	checkSyncDB([]machine.Machine{cmf1, cmf2},
+		[]db.Machine{dbf1, dbf2},
+		syncDBResult{})
+
+	cmf1.Role = db.Worker
+
+	// One role assigned, so one CloudID to be assigned after
+	checkSyncDB([]machine.Machine{cmf1, cmf2},
+		[]db.Machine{dbf1, dbf2},
+		syncDBResult{})
+
+	dbf2.CloudID = cmf1.ID
+	cmf2.Role = db.Master
+
+	// Now that CloudID of machine with FloatingIP has been assigned,
+	// FloatingIP should also be assigned
+	checkSyncDB([]machine.Machine{cmf1, cmf2},
+		[]db.Machine{dbf1, dbf2},
+		syncDBResult{
+			updateIPs: []machine.Machine{
+				{
+					Provider:   FakeAmazon,
+					Role:       db.Worker,
+					PublicIP:   "worker",
+					ID:         "worker",
+					FloatingIP: "float",
+				},
+			},
+		})
+
+	// Test FloatingIP role shuffling
+	dbm2 := db.Machine{Provider: FakeAmazon, Role: db.Master, PublicIP: "mIP"}
+	dbm3 := db.Machine{Provider: FakeAmazon, Role: db.Worker, PublicIP: "wIP1",
+		FloatingIP: "flip1"}
+	dbm4 := db.Machine{Provider: FakeAmazon, Role: db.Worker, PublicIP: "wIP2",
+		FloatingIP: "flip2"}
+
+	m2 := machine.Machine{Provider: FakeAmazon, PublicIP: "mIP", ID: "m2"}
+	m3 := machine.Machine{Provider: FakeAmazon, PublicIP: "wIP1", ID: "m3"}
+	m4 := machine.Machine{Provider: FakeAmazon, PublicIP: "wIP2", ID: "m4"}
+
+	m2.Role = db.Worker
+	m3.Role = db.Master
+	m4.Role = db.Worker
+
+	// CloudIDs not assigned to db machines yet, so shouldn't update anything.
+	checkSyncDB([]machine.Machine{m2, m3, m4},
+		[]db.Machine{dbm2, dbm3, dbm4},
+		syncDBResult{})
+
+	dbm2.CloudID = m3.ID
+	dbm3.CloudID = m2.ID
+	dbm4.CloudID = m4.ID
+
+	// CloudIDs are now assigned, so time to update floating IPs
+	checkSyncDB([]machine.Machine{m2, m3, m4},
+		[]db.Machine{dbm2, dbm3, dbm4},
+		syncDBResult{
+			updateIPs: []machine.Machine{
+				{
+					Provider:   FakeAmazon,
+					Role:       db.Worker,
+					PublicIP:   "mIP",
+					ID:         "m2",
+					FloatingIP: "flip1",
+				},
+				{
+					Provider:   FakeAmazon,
+					Role:       db.Worker,
+					PublicIP:   "wIP2",
+					ID:         "m4",
+					FloatingIP: "flip2",
+				},
+			},
+		})
+
 }
 
 func TestSync(t *testing.T) {
@@ -358,7 +475,7 @@ func TestSync(t *testing.T) {
 	checkSync(clst, FakeAmazon, testRegion,
 		assertion{stop: []string{toRemove.CloudID}})
 
-	// Test booting a machine with floating IP
+	// Test booting a machine with floating IP - shouldn't update FloatingIP yet
 	clst.conn.Txn(db.AllTables...).Run(func(view db.Database) error {
 		m := view.InsertMachine()
 		m.Role = db.Master
@@ -372,6 +489,11 @@ func TestSync(t *testing.T) {
 	})
 	checkSync(clst, FakeAmazon, testRegion, assertion{
 		boot: []bootRequest{amazonLargeBoot},
+	})
+
+	// The bootRequest from the previous test is done now, and a CloudID has
+	// been assigned, so we should also receive the ipRequest from before
+	checkSync(clst, FakeAmazon, testRegion, assertion{
 		updateIPs: []ipRequest{{
 			size:        "m4.large",
 			cloudConfig: amazonCloudConfig,
@@ -392,11 +514,13 @@ func TestSync(t *testing.T) {
 		return nil
 	})
 	checkSync(clst, FakeAmazon, testRegion, assertion{
-		updateIPs: []ipRequest{{
-			size:        "m4.large",
-			cloudConfig: amazonCloudConfig,
-			ip:          "another.ip",
-		}},
+		updateIPs: []ipRequest{
+			{
+				size:        "m4.large",
+				cloudConfig: amazonCloudConfig,
+				ip:          "another.ip",
+			},
+		},
 	})
 
 	// Test removing a floating IP

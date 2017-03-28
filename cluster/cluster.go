@@ -253,6 +253,7 @@ func (clst cluster) join() (joinResult, error) {
 		}
 
 		res.machines = view.SelectFromMachine(nil)
+		cloudMachines = foreman.GetMachineRoles(cloudMachines)
 
 		dbResult := syncDB(cloudMachines, res.machines)
 		res.boot = dbResult.boot
@@ -356,15 +357,13 @@ type syncDBResult struct {
 
 func syncDB(cms []machine.Machine, dbms []db.Machine) syncDBResult {
 	ret := syncDBResult{}
-	cms = foreman.GetMachineRoles(cms)
 
 	pair1, dbmis, cmis := join.Join(dbms, cms, func(l, r interface{}) int {
 		dbm := l.(db.Machine)
 		m := r.(machine.Machine)
 
-		// Don't join if m.ID and dbm.CloudID are empty.
-		if m.ID != "" && dbm.CloudID == m.ID &&
-			dbm.Provider == m.Provider && dbm.Preemptible == m.Preemptible &&
+		if dbm.CloudID == m.ID && dbm.Provider == m.Provider &&
+			dbm.Preemptible == m.Preemptible &&
 			dbm.Region == m.Region && dbm.Size == m.Size &&
 			(m.DiskSize == 0 || dbm.DiskSize == m.DiskSize) &&
 			(m.Role == db.None || dbm.Role == m.Role) {
@@ -378,25 +377,26 @@ func syncDB(cms []machine.Machine, dbms []db.Machine) syncDBResult {
 		dbm := l.(db.Machine)
 		m := r.(machine.Machine)
 
-		switch {
-		case dbm.Provider != m.Provider ||
+		if dbm.Provider != m.Provider ||
 			dbm.Region != m.Region ||
 			dbm.Size != m.Size ||
 			dbm.Preemptible != m.Preemptible ||
 			(m.DiskSize != 0 && dbm.DiskSize != m.DiskSize) ||
-			(m.Role != db.None && dbm.Role != m.Role):
+			(m.Role != db.None && dbm.Role != m.Role) {
 			return -1
-		case m.ID != "" && dbm.CloudID == m.ID:
-			panic("Not Reached") // Should have been hit by the first join.
-		case m.Role != db.None && dbm.Role == m.Role:
-			return 1
-		case dbm.FloatingIP == m.FloatingIP:
-			return 2
-		case dbm.PublicIP == m.PublicIP || dbm.PrivateIP == m.PrivateIP:
-			return 3
-		default:
-			return 4
 		}
+
+		score := 10
+		if dbm.Role != db.None && m.Role != db.None && dbm.Role == m.Role {
+			score -= 4
+		}
+		if dbm.PublicIP == m.PublicIP && dbm.PrivateIP == m.PrivateIP {
+			score -= 2
+		}
+		if dbm.FloatingIP == m.FloatingIP {
+			score--
+		}
+		return score
 	})
 
 	for _, cm := range cmis {
@@ -420,7 +420,7 @@ func syncDB(cms []machine.Machine, dbms []db.Machine) syncDBResult {
 		dbm := pair.L.(db.Machine)
 		m := pair.R.(machine.Machine)
 
-		if dbm.FloatingIP != m.FloatingIP {
+		if dbm.CloudID == m.ID && dbm.FloatingIP != m.FloatingIP {
 			m.FloatingIP = dbm.FloatingIP
 			ret.updateIPs = append(ret.updateIPs, m)
 		}
