@@ -130,5 +130,16 @@ docker-push-quilt:
 docker-build-ovs:
 	cd -P ovs && docker build -t ${REPO}/ovs .
 
+builddeb-docker-image:
+	${DOCKER} build -t quilt-build -f Build_Dockerfile .
+
+builddeb-docker: builddeb-docker-image
+	${DOCKER} run -v $(PWD):/mnt/src/github.com/quilt/quilt quilt-build
+
+builddeb:
+	dpkg-buildpackage -us -uc -b
+	mkdir -p dist
+	mv ../quilt-js_*.deb dist/
+
 # Include all .mk files so you can have your own local configurations
 include $(wildcard *.mk)

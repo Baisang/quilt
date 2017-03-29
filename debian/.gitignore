@@ -1,0 +1,6 @@
+/.debhelper
+/*.log
+/*.substvars
+/files
+/substvars
+/quilt-js*

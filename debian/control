@@ -1,0 +1,39 @@
+Source: quilt
+Section: admin
+Priority: extra
+Maintainer: Ethan J. Jackson <ejj@eecs.berkeley.edu>
+Uploaders: Brian Sang <sang.bri@berkeley.edu>
+Build-Depends:
+  debhelper (>= 9),
+  dh-golang,
+  golang-any
+Standards-Version: 3.9.8
+Homepage: https://github.com/quilt/quilt
+Vcs-Browser: https://github.com/quilt/quilt.git
+Vcs-Git: https://github.com/quilt/quilt.git
+XS-Go-Import-Path: github.com/quilt/quilt
+
+Package: quilt-js
+Architecture: any
+Built-Using: ${misc:Built-Using}
+Depends: ${shlibs:Depends},
+         ${misc:Depends}
+Description: Quilt is a simple way to use JavaScript to build and manage anything
+ from website backends to complex distributed systems. As shown above,
+ a few simple commands will get your system up and running.
+ .
+ Building infrastructure and running applications with Quilt is simple,
+ intuitive, and flexible. With Quilt.js, you specify your infrastructure
+ declaratively in JavaScript, and Quilt then takes care of deploying it
+ on one or more cloud providers. Subsequently scaling and modifying the
+ infrastructure then becomes a matter of simply changing a few lines of
+ JavaScript code.
+ .
+ The Quilt.js JavaScript framework allows for development, versioning, and
+ testing of infrastructure in the same way we do for application code.
+ Additionally, Quilt.js code is shareable, reusable and composable,
+ making it easy to set up and manage systems without being an expert in
+ system administration.
+ .
+ Quilt is a research project out of UC Berkeley. It is currently under
+ heavy development, but please try it out - we are eager for feedback!

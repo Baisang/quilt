@@ -1,0 +1,34 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE=0
+
+export DH_GOPKG=github.com/quilt/quilt
+
+export GOPATH=/mnt
+
+PKGDIR=debian/quilt-js
+
+%:
+	dh $@ --buildsystem=golang --with=golang
+
+clean:
+	dh_clean
+	rm -rf $(GOPATH)/quilt-build-deps*.deb
+	rm -rf $(GOPATH)/bin/* $(GOPATH)/pkg/*
+	rm -f $(GOPATH)/goinstall.log
+
+binary-arch: clean
+	dh_prep
+	dh_installdirs
+	cd $(GOPATH)/src/$(DH_GOPKG) && go install
+	mkdir -p $(PKGDIR)/usr/bin
+	cp $(GOPATH)/bin/quilt $(PKGDIR)/usr/bin/
+	dh_strip
+	dh_compress
+	dh_fixperms
+	dh_installdeb
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
+
+binary: binary-arch

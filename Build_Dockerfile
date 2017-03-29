@@ -1,0 +1,14 @@
+FROM debian:stretch
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
+  apt-get install -y --no-install-recommends \
+    build-essential \
+    devscripts \
+    equivs \
+    lintian \
+  && rm -rf /var/lib/apt/lists/* && apt-get clean
+WORKDIR /mnt/src/github.com/quilt/quilt
+
+ENTRYPOINT apt-get update && \
+  mk-build-deps -i --tool 'apt-get --no-install-recommends -y' && \
+  make builddeb
