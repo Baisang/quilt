@@ -95,9 +95,6 @@ func runWorkerOnce() {
 		return
 	}
 
-	/* The ovn controller doesn't support reconfiguring ovn-remote mid-run.
-	 * So, we need to restart the container when the leader changes. */
-	Remove(images.Ovncontroller)
 	run(images.Ovncontroller, "ovn-controller")
 }
 
