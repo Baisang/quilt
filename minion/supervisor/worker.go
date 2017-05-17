@@ -69,7 +69,6 @@ func runWorkerOnce() {
 	}
 
 	oldEtcdIPs = etcdIPs
-	oldIP = IP
 
 	run(images.Etcd,
 		fmt.Sprintf("--initial-cluster=%s", initialClusterString(etcdIPs)),
