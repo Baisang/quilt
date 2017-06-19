@@ -160,9 +160,9 @@ func TestVagrantDeployment(t *testing.T) {
 		"Role":"Worker",
 		"Size":"m4.large"
 	}]}`
-	vagrantErrMsg := "The Vagrant provider is in development." +
-		" The stitch will continue to run, but" +
-		" probably won't work correctly."
+	vagrantErrMsg := "The Vagrant provider is still in development." +
+		" The blueprint will continue to run, but" +
+		" there may be some errors."
 
 	_, err := s.Deploy(context.Background(),
 		&pb.DeployRequest{Deployment: vagrantDeployment})
