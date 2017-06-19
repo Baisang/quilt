@@ -61,7 +61,7 @@ func initMachine(cloudConfig string, size string, id string) error {
 		return err
 	}
 
-	err = util.WriteFile(path+"/vagrantFile", []byte(vagrantFile), 0644)
+	err = util.WriteFile(path+"/Vagrantfile", []byte(vagrantFile), 0644)
 	if err != nil {
 		destroy(id)
 		return err
