@@ -20,7 +20,7 @@ type Cluster struct {
 // New creates a new vagrant cluster.
 func New(namespace string) (*Cluster, error) {
 	clst := Cluster{namespace}
-	err := addBox("boxcutter/ubuntu1604", "virtualbox")
+	err := addBox("ubuntu/xenial64", "virtualbox")
 	return &clst, err
 }
 

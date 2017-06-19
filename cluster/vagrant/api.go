@@ -23,7 +23,9 @@ Vagrant.require_version ">= 1.6.0"
 
 size = File.open(SIZE_PATH).read.strip.split(",")
 Vagrant.configure(2) do |config|
-  config.vm.box = "boxcutter/ubuntu1604"
+  config.vm.box = "ubuntu/xenial64"
+
+	config.vm.box_version = "20170515.0.0"
 
   config.vm.network "private_network", type: "dhcp"
 
@@ -39,6 +41,8 @@ Vagrant.configure(2) do |config|
   end
 end
 `
+
+const boxVersion = "20170515.0.0"
 
 func initMachine(cloudConfig string, size string, id string) error {
 	vdir, err := vagrantDir()
@@ -154,7 +158,7 @@ func addBox(name string, provider string) error {
 		return nil
 	}
 	err = exec.Command(vagrantCmd, []string{"--machine-readable", "box", "add",
-		"--provider", provider, name}...).Run()
+		"--provider", provider, name, "--box-version", boxVersion}...).Run()
 	if err != nil {
 		return errors.New("unable to add box")
 	}
