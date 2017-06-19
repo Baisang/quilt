@@ -55,13 +55,6 @@ func initMachine(cloudConfig string, size string, id string) error {
 	path := vdir + id
 	os.Mkdir(path, os.ModeDir|os.ModePerm)
 
-	_, stderr, err := shell(id, `vagrant --machine-readable init coreos-beta`)
-	if err != nil {
-		log.Errorf("Failed to initialize Vagrant environment: %s", stderr)
-		destroy(id)
-		return errors.New("unable to init machine")
-	}
-
 	err = util.WriteFile(path+"/user-data", []byte(cloudConfig), 0644)
 	if err != nil {
 		destroy(id)
