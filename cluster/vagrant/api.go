@@ -8,66 +8,76 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"text/template"
 
 	log "github.com/Sirupsen/logrus"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/quilt/quilt/util"
 )
 
-var vagrantCmd = "vagrant"
-var shCmd = "sh"
+const vagrantCmd = "vagrant"
+const shCmd = "sh"
+const cloudConfigPath = "/user-data"
+const sizePath = "/size"
+const vagrantFilePath = "/Vagrantfile"
 
-const vagrantFile = `CLOUD_CONFIG_PATH = File.join(File.dirname(__FILE__), "user-data")
-SIZE_PATH = File.join(File.dirname(__FILE__), "size")
-Vagrant.require_version ">= 1.6.0"
+// Allow mocking out for unit tests
+var box = "ubuntu/xenial64"
+var boxVersion = "20170515.0.0"
 
-size = File.open(SIZE_PATH).read.strip.split(",")
-Vagrant.configure(2) do |config|
-  config.vm.box = "ubuntu/xenial64"
+// createVagrantFile generates a VagrantFile for the machine.
+func createVagrantFile() string {
+	t := template.Must(template.New("VagrantFile").Parse(vagrantTemplate))
 
-	config.vm.box_version = "20170515.0.0"
+	var vagrantFileBytes bytes.Buffer
+	err := t.Execute(&vagrantFileBytes, struct {
+		CloudConfigPath string
+		Box             string
+		BoxVersion      string
+		SizePath        string
+	}{
+		CloudConfigPath: cloudConfigPath,
+		Box:             box,
+		BoxVersion:      boxVersion,
+		SizePath:        sizePath,
+	})
 
-  config.vm.network "private_network", type: "dhcp"
+	if err != nil {
+		panic(err)
+	}
 
-  ram=(size[0].to_f*1024).to_i
-  cpus=size[1]
-  config.vm.provider "virtualbox" do |v|
-    v.memory = ram
-    v.cpus = cpus
-  end
+	return vagrantFileBytes.String()
+}
 
-  if File.exist?(CLOUD_CONFIG_PATH)
-    config.vm.provision "shell", path: "#{CLOUD_CONFIG_PATH}"
-  end
-end
-`
-
-const boxVersion = "20170515.0.0"
-
+// initMachine creates the files necessary to initialize a vagrant machine.
 func initMachine(cloudConfig string, size string, id string) error {
 	vdir, err := vagrantDir()
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(vdir); os.IsNotExist(err) {
-		os.Mkdir(vdir, os.ModeDir|os.ModePerm)
+
+	if _, err := util.AppFs.Stat(vdir); os.IsNotExist(err) {
+		util.AppFs.Mkdir(vdir, os.ModeDir|os.ModePerm)
 	}
+
 	path := vdir + id
-	os.Mkdir(path, os.ModeDir|os.ModePerm)
+	util.AppFs.Mkdir(path, os.ModeDir|os.ModePerm)
 
-	err = util.WriteFile(path+"/user-data", []byte(cloudConfig), 0644)
+	err = util.WriteFile(path+cloudConfigPath, []byte(cloudConfig), 0644)
 	if err != nil {
 		destroy(id)
 		return err
 	}
 
-	err = util.WriteFile(path+"/Vagrantfile", []byte(vagrantFile), 0644)
+	vagrantFile := createVagrantFile()
+
+	err = util.WriteFile(path+vagrantFilePath, []byte(vagrantFile), 0644)
 	if err != nil {
 		destroy(id)
 		return err
 	}
 
-	err = util.WriteFile(path+"/size", []byte(size), 0644)
+	err = util.WriteFile(path+sizePath, []byte(size), 0644)
 	if err != nil {
 		destroy(id)
 		return err
@@ -130,7 +140,7 @@ func list() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := os.Stat(vdir); os.IsNotExist(err) {
+	if _, err := util.AppFs.Stat(vdir); os.IsNotExist(err) {
 		return subdirs, nil
 	}
 
